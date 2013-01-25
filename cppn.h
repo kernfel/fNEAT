@@ -31,10 +31,11 @@ typedef struct CPPN_Node {
 } CPPN_Node;
 
 typedef struct CPPN {
-	CPPN_Node *nodes;	// Includes input, output and hidden nodes, in this order
+	CPPN_Node *nodes;		// Includes input, output and hidden nodes, in this order
 	int num_inputs, num_outputs, num_hidden;
 	
-	CPPN_Link *links;
+	CPPN_Link *links;		// Links, sorted by innovation number
+	CPPN_Link **links_nodesort;	// Pointers to the above, sorted by postsynaptic node id
 	int num_links;
 } CPPN;
 

@@ -146,6 +146,8 @@ int mutate_CPPN( CPPN *net, CPPN_Params *params ) {
 		// Note, net->num_links will be updated within CPPN_insert_link.
 		if (( err = Realloc( net->links, (net->num_links+2)*sizeof *net->links ) ))
 			return err;
+		if (( err = Realloc( net->links_nodesort, (net->num_links+2)*sizeof *net->links_nodesort ) ))
+			return err;
 		if (( err = CPPN_insert_link( net, params, net->links[link_id].from, node_id, 1.0, 0, 1 ) ))
 			return err;
 		if (( err = CPPN_insert_link( net, params, node_id, net->links[link_id].to, net->links[link_id].weight, 0, 1 ) ))
@@ -225,33 +227,39 @@ int CPPN_exclude_recurrent_links( const CPPN *net, const CPPN_Params *params, in
 
 int CPPN_insert_link( CPPN *net, CPPN_Params *params, int from, int to, double weight, int is_disabled, int no_realloc ) {
 	int err=0;
-	if ( ! no_realloc )
+	if ( ! no_realloc ) {
 		if (( err = Realloc( net->links, (net->num_links+1)*sizeof *net->links ) ))
 			return err;
+		if (( err = Realloc( net->links_nodesort, (net->num_links+1)*sizeof *net->links_nodesort ) ))
+			return err;
+	}
+
+	// Insert the new link and set its parameters
+	CPPN_Link *l = net->links + net->num_links;
+	l->innov_id = params->innov_counter++;
+	l->from = from;
+	l->to = to;
+	l->weight = weight;
+	l->is_disabled = is_disabled;
 	
 	net->num_links++;
-
-	int i=0;
-	CPPN_Link *l;
 	
-	// Find the right place
-	for ( l=net->links+net->num_links; l>=net->links; l-- ) {
-		if ( (l-1)->to <= to )
+	// Find the right place for the nodesorted pointer
+	int i=0;
+	CPPN_Link **lpp;
+	for ( lpp=net->links_nodesort+net->num_links; lpp>=net->links_nodesort; lpp-- ) {
+		if ( (*(lpp-1))->to <= to )
 			break;
 		i++;
 	}
 	
 	// Shove everything back to make space for the newbie
 	if ( i ) {
-		memmove( l+1, l, i*sizeof *l );
+		memmove( lpp+1, lpp, i*sizeof *lpp );
 	}
 	
-	// Set the new link's parameters
-	l->innov_id = params->innov_counter++;
-	l->from = from;
-	l->to = to;
-	l->weight = weight;
-	l->is_disabled = is_disabled;
+	// Link up
+	*lpp = l;
 	
 	return err;
 }
@@ -298,7 +306,7 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 	}
 	
 	// Cycle through the net until nothing changes or num_activations is reached
-	CPPN_Link *ln;
+	CPPN_Link **lpp;
 	int links_processed, k, k_incr, k_max, n;
 	double diff, a;
 	if ( params->flags & CFL_ALLOW_RECURRENCE ) {
@@ -310,7 +318,7 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 	}
 	
 	for ( k=0; k<k_max; k+=k_incr ) {
-		ln = net->links;
+		lpp = net->links_nodesort;
 		links_processed = 0;
 		diff = 0.0;
 		
@@ -320,8 +328,8 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 			n = 0;
 			
 			// foreach node j that feeds into i
-			for ( i=ln->to; ln->to == i; ln++ ) {
-				a += ln->weight * net->nodes[ln->from].activation;
+			for ( i=(*lpp)->to; (*lpp)->to == i; lpp++ ) {
+				a += (*lpp)->weight * net->nodes[(*lpp)->from].activation;
 				links_processed++;
 				n++;
 			}
