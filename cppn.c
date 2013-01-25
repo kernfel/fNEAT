@@ -299,7 +299,7 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 	
 	// Cycle through the net until nothing changes or num_activations is reached
 	CPPN_Link *ln;
-	int links_processed, k, k_incr, k_max;
+	int links_processed, k, k_incr, k_max, n;
 	double diff, a;
 	if ( params->flags & CFL_ALLOW_RECURRENCE ) {
 		k_incr = 1;
@@ -317,13 +317,15 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 		// foreach node i that has inputs
 		while ( links_processed < net->num_links ) {
 			a = 0.0;
+			n = 0;
 			
 			// foreach node j that feeds into i
 			for ( i=ln->to; ln->to == i; ln++ ) {
 				a += ln->weight * net->nodes[ln->from].activation;
 				links_processed++;
+				n++;
 			}
-			a = CPPN_func(net->nodes[i].func, a);
+			a = CPPN_func(net->nodes[i].func, a) / n;
 			diff += fabs(a-net->nodes[i].activation);
 			net->nodes[i].activation = a;
 		}
