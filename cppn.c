@@ -338,3 +338,38 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 	return diff;
 }
 
+double get_genetic_distance( CPPN *net1, CPPN *net2, const CPPN_Params *params ) {
+	int disjoint=0, excess=0, matches=0, n=max(net1->num_links, net2->num_links);
+	double w1, w2, wdiff=0.0;
+	int i=0, j=0;
+	
+	while ( i<net1->num_links && j<net2->num_links ) {
+		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
+			matches++;
+			w1 = net1->links[i].is_disabled ? 0.0 : net1->links[i].weight;
+			w2 = net2->links[j].is_disabled ? 0.0 : net2->links[j].weight;
+			wdiff += fabs(w1-w2);
+			i++;
+			j++;
+		} else {
+			disjoint++;
+			if ( net1->links[i].innov_id > net2->links[j].innov_id )
+				j++;
+			else
+				i++;
+		}
+	}
+	
+	// Correct for pacing error that counts the first excess gene as disjoint...
+	if ( net1->links[net1->num_links-1].innov_id != net2->links[net2->num_links-1].innov_id )
+		disjoint--;
+	
+	// ... but capitalise on the same by using i|j instead of (i-1)|(j-1) here
+	if ( i == net1->num_links )
+		excess = net2->num_links - j;
+	else
+		excess = net1->num_links - i;
+	
+	return params->disjoint_factor*disjoint/n + params->excess_factor*excess/n + params->weight_factor*wdiff/n;
+}
+

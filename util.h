@@ -8,5 +8,7 @@ int Malloc( void *p, size_t s );
 int Calloc( void *p, size_t n, size_t s );
 int Realloc( void *p, size_t s );
 
+#define max(a,b) ((a)>(b)?(a):(b))
+
 #endif
 

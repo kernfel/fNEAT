@@ -52,6 +52,10 @@ typedef struct CPPN_Params {
 		change_weight_rate,
 		enable_link_prob;	// Enable previously disabled links
 	
+	double	disjoint_factor,	// Factors for determining genetic distance
+		excess_factor,
+		weight_factor;
+	
 	int num_activations;		// Maximum number of iterations through the nodes to fully activate the net.
 					// Has no effect if ~CFL_ALLOW_RECURRENCE
 	
@@ -81,6 +85,9 @@ int mutate_CPPN( CPPN *net, CPPN_Params *parameters );
 // Note that neither distance nor bias should be added to coords!
 // Returns the cumulated activation deltas of the last activation iteration.
 double read_CPPN( CPPN *net, const CPPN_Params *parameters, double *coords, double *output );
+
+// Determine genetic distance
+double get_genetic_distance( CPPN *net1, CPPN *net2, const CPPN_Params *parameters );
 
 // ** Private methods
 
