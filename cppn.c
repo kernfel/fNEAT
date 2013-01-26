@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "util.h"
+#include "params.h"
 
 #include "cppn.h"
 
@@ -12,7 +13,7 @@ int create_CPPN(	CPPN *net,
 			enum CPPNFunc *output_funcs,
 			int *outputs_linked,
 			int create_disabled_links,
-			CPPN_Params *params )
+			struct NEAT_Params *params )
 {
 	int i, j, num_linked_outputs = 0, err=0;
 
@@ -89,7 +90,7 @@ void delete_CPPN( CPPN *net ) {
 	free( net );
 }
 
-int mutate_CPPN( CPPN *net, CPPN_Params *params, Node_Innovation *ni, Link_Innovation *li ) {
+int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Link_Innovation *li ) {
 	int i, j, err=0;
 	double p, s;
 	
@@ -234,7 +235,7 @@ int mutate_CPPN( CPPN *net, CPPN_Params *params, Node_Innovation *ni, Link_Innov
 	return err;
 }
 
-int CPPN_exclude_recurrent_links( const CPPN *net, const CPPN_Params *params, int target_id, int *possible_sources ) {
+int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *params, int target_id, int *possible_sources ) {
 	int i, n=0;
 
 	// Don't bother going any further if we're at a non-projecting output node
@@ -252,7 +253,7 @@ int CPPN_exclude_recurrent_links( const CPPN *net, const CPPN_Params *params, in
 	return n;
 }
 
-int CPPN_insert_link( CPPN *net, CPPN_Params *params, int from, int to, double weight, int is_disabled, int no_realloc ) {
+int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, double weight, int is_disabled, int no_realloc ) {
 	int err=0;
 	if ( ! no_realloc ) {
 		if (( err = Realloc( net->links, (net->num_links+1)*sizeof *net->links ) ))
@@ -309,7 +310,7 @@ double CPPN_func( enum CPPNFunc fn, double x ) {
 	}
 }
 
-double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *output ) {
+double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, double *output ) {
 	int i,j;
 	
 	// Flush first
@@ -375,7 +376,7 @@ double read_CPPN( CPPN *net, const CPPN_Params *params, double *coords, double *
 	return diff;
 }
 
-double get_genetic_distance( CPPN *net1, CPPN *net2, const CPPN_Params *params ) {
+double get_genetic_distance( CPPN *net1, CPPN *net2, const struct NEAT_Params *params ) {
 	int disjoint=0, excess=0, matches=0, n=max(net1->num_links, net2->num_links);
 	double w1, w2, wdiff=0.0;
 	int i=0, j=0;
