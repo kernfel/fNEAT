@@ -62,6 +62,22 @@ typedef struct CPPN_Params {
 	unsigned int flags;
 } CPPN_Params;
 
+// Node insertion summary, contains innov_id's of the deactivated and the inserted links
+typedef struct Node_Innovation {
+	unsigned int replaced_link;
+	unsigned int link_in, link_out;
+} Node_Innovation;
+
+// Link insertion summary
+typedef struct Link_Innovation {
+	unsigned int innov_id;
+	int type;	// 0: input to output node, from/to carry node indices
+			// 1: hidden to output
+			// 2: input to hidden
+			// 3: hidden to hidden, from/to carry lowest link innov_id's at the respective nodes
+	unsigned int from, to;
+} Link_Innovation;
+
 
 // Constructors
 int create_CPPN(	CPPN *net,
@@ -79,7 +95,7 @@ void delete_CPPN( CPPN *trash );
 // ** Public methods
 
 // Mutate net according to the probabilities given in parameters
-int mutate_CPPN( CPPN *net, CPPN_Params *parameters );
+int mutate_CPPN( CPPN *net, CPPN_Params *parameters, Node_Innovation *ni, Link_Innovation *li );
 
 // Activate net to read its (final) output value at coords.
 // Note that neither distance nor bias should be added to coords!

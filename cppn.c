@@ -89,7 +89,7 @@ void delete_CPPN( CPPN *net ) {
 	free( net );
 }
 
-int mutate_CPPN( CPPN *net, CPPN_Params *params ) {
+int mutate_CPPN( CPPN *net, CPPN_Params *params, Node_Innovation *ni, Link_Innovation *li ) {
 	int i, j, err=0;
 	double p, s;
 	
@@ -142,13 +142,21 @@ int mutate_CPPN( CPPN *net, CPPN_Params *params ) {
 			return err;
 		if (( err = CPPN_insert_link( net, params, node_id, net->links[link_id].to, net->links[link_id].weight, 0, 1 ) ))
 			return err;
+		
+		// Provide details about the mutation
+		if ( ni ) {
+			ni->replaced_link = net->links[link_id].innov_id;
+			ni->link_in = params->innov_counter-2;
+			ni->link_out = params->innov_counter-1;
+		}
 	}
 	
 	// Add a link
 	if ( params->add_link_prob * RAND_MAX > rand() ) {
 		int	target_id = rand() % (net->num_outputs+net->num_hidden) + net->num_inputs,
 			num_possible_sources = net->num_inputs+net->num_hidden+net->num_outputs,
-			possible_sources[num_possible_sources];
+			possible_sources[num_possible_sources],
+			source_id;
 		
 		for ( i=0; i<num_possible_sources; i++ )
 			possible_sources[num_possible_sources] = 1;
@@ -176,21 +184,50 @@ int mutate_CPPN( CPPN *net, CPPN_Params *params ) {
 		// Determine source node and add link
 		if ( num_possible_sources ) {
 			j = rand() % num_possible_sources;
-			for ( i=0; j; i++ ) {
-				j -= possible_sources[i];
+			// Find the j:th blip in a sparse array
+			for ( source_id=0; j; source_id++ ) {
+				j -= possible_sources[source_id];
 			}
-			// i-1 now is the index of the chosen, valid source node.
+			source_id--; // To correct for that last ++ before loop exit
 			
 			if (( err = CPPN_insert_link(
 				net,
 				params,
-				i-1,
+				source_id,
 				target_id,
 				2*params->change_weight_rate*rand()/RAND_MAX - params->change_weight_rate,
 				0,
 				0
 			) ))
 				return err;
+		}
+		
+		// Provide details about the mutation
+		if ( li ) {
+			li->innov_id = params->innov_counter-1;
+			li->type = 0x00;
+			li->from = source_id;
+			li->to = target_id;
+			if ( source_id >= net->num_inputs ) {
+				li->type |= 0x01;
+				int oldest_link = li->innov_id;
+				for ( i=0; i<net->num_links; i++) {
+					if (( net->links[i].to == source_id || net->links[i].from == source_id ) \
+					  && net->links[i].innov_id < oldest_link )
+						oldest_link = net->links[i].innov_id;
+				}
+				li->from = oldest_link;
+			}
+			if ( target_id >= net->num_inputs+net->num_outputs ) {
+				li->type |= 0x10;
+				int oldest_link = li->innov_id;
+				for ( i=0; i<net->num_links; i++) {
+					if (( net->links[i].to == target_id || net->links[i].from == target_id ) \
+					  && net->links[i].innov_id < oldest_link )
+						oldest_link = net->links[i].innov_id;
+				}
+				li->to = oldest_link;
+			}
 		}
 	}
 	
