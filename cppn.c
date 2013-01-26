@@ -114,16 +114,6 @@ int mutate_CPPN( CPPN *net, CPPN_Params *params ) {
 		}
 	}
 	
-	// Change activation functions of hidden nodes
-	if ( params->change_func_prob ) {
-		p = params->change_func_prob * RAND_MAX;
-		for ( i=0; i<net->num_hidden; i++ ) {
-			if ( p > rand() ) {
-				net->nodes[i+net->num_inputs+net->num_outputs].func = params->allowed_funcs[ rand() % params->num_allowed_funcs ];
-			}
-		}
-	}
-	
 	// Add a node
 	if ( params->add_node_prob * RAND_MAX > rand() ) {
 		// Determine the link to split

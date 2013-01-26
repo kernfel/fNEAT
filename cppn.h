@@ -50,8 +50,7 @@ typedef struct CPPN_Params {
 		add_node_prob,
 		change_weight_prob,	// Change link weights by a maximum of +/- change_weight_rate
 		change_weight_rate,
-		enable_link_prob,	// Enable previously disabled links
-		change_func_prob;	// Change hidden node activation functions
+		enable_link_prob;	// Enable previously disabled links
 	
 	int num_activations;		// Maximum number of iterations through the nodes to fully activate the net.
 					// Has no effect if ~CFL_ALLOW_RECURRENCE
