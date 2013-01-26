@@ -59,6 +59,9 @@ void delete_CPPN( CPPN *trash );
 // Mutate net according to the probabilities given in parameters
 int mutate_CPPN( CPPN *net, struct NEAT_Params *parameters, Node_Innovation *ni, Link_Innovation *li );
 
+// Cross mate into net, keeping all of net's weight values where applicable
+/* NYI */ int crossover_CPPN( CPPN *net, const CPPN *mate );
+
 // Activate net to read its (final) output value at coords.
 // Note that neither distance nor bias should be added to coords!
 // Returns the cumulated activation deltas of the last activation iteration.
