@@ -131,7 +131,7 @@ int epoch( Population *pop, struct NEAT_Params *params ) {
 				k = rand() % (num_parents-1);
 				if ( k >= j%num_parents )
 					k++;
-				if (( err = crossover_CPPN( child->genotype, members[k]->genotype ) ))
+				if (( err = crossover_CPPN( child->genotype, members[k]->genotype, params ) ))
 					goto fail;
 			}
 			

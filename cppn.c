@@ -464,3 +464,44 @@ double get_genetic_distance( CPPN *net1, CPPN *net2, const struct NEAT_Params *p
 	return params->disjoint_factor*disjoint/n + params->excess_factor*excess/n + params->weight_factor*wdiff/n;
 }
 
+int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
+	int err=0, i=0, j=0;
+	
+	while ( i<net1->num_links && j<net2->num_links ) {
+		if ( net1->links_innovsort[i]->innov_id == net2->links_innovsort[j]->innov_id ) {
+			i++;
+			j++;
+		} else {
+			if ( net1->links_innovsort[i]->innov_id > net2->links_innovsort[j]->innov_id ) {
+				if (( err = CPPN_insert_link(
+					net1,
+					params,
+					net2->links_innovsort[j]->from,
+					net2->links_innovsort[j]->to,
+					net2->links_innovsort[j]->weight,
+					net2->links_innovsort[j]->is_disabled,
+					net2->links_innovsort[j]->innov_id
+				)))
+					return err;
+				j++;
+			} else {
+				i++;
+			}
+		}
+	}
+	for ( ; j<net2->num_links; j++ ) {
+		if (( err = CPPN_insert_link(
+			net1,
+			params,
+			net2->links_innovsort[j]->from,
+			net2->links_innovsort[j]->to,
+			net2->links_innovsort[j]->weight,
+			net2->links_innovsort[j]->is_disabled,
+			net2->links_innovsort[j]->innov_id
+		)))
+			return err;
+	}
+	
+	return err;
+}
+
