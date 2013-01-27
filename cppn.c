@@ -15,30 +15,24 @@ int create_CPPN(	CPPN *net,
 			int create_disabled_links,
 			struct NEAT_Params *params )
 {
-	int i, j, err=0, destroy;
-
-	if (( destroy = ! net ))
-		if (( err = Malloc( net, sizeof *net ) ))
-			return err;
+	int i, j, err=0;
 	
 	// Determine number of nodes and links
 	net->num_outputs = num_outputs;
 	net->num_inputs = 2*params->num_dimensions + ((params->flags & CFL_USE_DIST)? 1:0) + ((params->flags & CFL_USE_BIAS)? 1:0);
 	net->num_hidden = 0;
-	if ( create_disabled_links )
+	if ( create_disabled_links ) {
 		net->num_links = net->num_inputs * net->num_outputs;
-	else for ( i=0; i<num_outputs; i++ )
-		if ( outputs_linked[i] )
-			net->num_links += net->num_inputs;
+	} else {
+		net->num_links = 0;
+		for ( i=0; i<num_outputs; i++ )
+			if ( outputs_linked[i] )
+				net->num_links += net->num_inputs;
+	}
 	
 	// Allocate the storage necessary
-	if (( err = allocate_CPPN( net ) )) {
-		if ( destroy ) {
-			free( net );
-			net = 0;
-		}
+	if (( err = allocate_CPPN( net ) ))
 		return err;
-	}
 
 	// Create input and output nodes
 	for ( i=0; i<net->num_inputs; i++ )
@@ -65,22 +59,14 @@ int create_CPPN(	CPPN *net,
 }
 
 int clone_CPPN( CPPN *net, const CPPN *original ) {
-	int err=0, destroy;
-	if (( destroy = ! net ))
-		if (( err = Malloc( net, sizeof *net ) ))
-			return err;
+	int err=0;
 	
 	// Copy values over
 	memcpy( net, original, sizeof *original );
 
 	// Reassign pointers
-	if (( err = allocate_CPPN( net ) )) {
-		if ( destroy ) {
-			free( net );
-			net = 0;
-		}
+	if (( err = allocate_CPPN( net ) ))
 		return err;
-	}
 	
 	// Copy nodes and links
 	memcpy( net->nodes, original->nodes, (net->num_inputs+net->num_outputs+net->num_hidden)*sizeof *net->nodes );
@@ -97,26 +83,18 @@ int clone_CPPN( CPPN *net, const CPPN *original ) {
 }
 
 int allocate_CPPN( CPPN *net ) {
-	int err=0, destroy;
-	if (( destroy = ! net ))
-		if (( err = Malloc( net, sizeof *net ) ))
-			return err;
+	int err=0;
+
 	net->nodes = 0;
 	net->links = 0;
 	net->links_innovsort = 0;
 	net->links_nodesort = 0;
-	if ( destroy )
-		net->num_links = net->num_inputs = net->num_outputs = net->num_hidden = 0;
 
 	if (( err = Malloc( net->links, net->num_links*sizeof *net->links ) ) \
 	 || ( err = Calloc( net->links_innovsort, net->num_links, sizeof *net->links_innovsort ) ) \
 	 || ( err = Calloc( net->links_nodesort, net->num_links, sizeof *net->links_nodesort ) ) \
 	 || ( err = Malloc( net->nodes, (net->num_inputs+net->num_outputs+net->num_hidden)*sizeof *net->nodes ) )) {
 		delete_CPPN( net );
-		if ( destroy ) {
-			free( net );
-			net = 0;
-		}
 	}
 
 	return err;

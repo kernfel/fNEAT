@@ -50,10 +50,11 @@ int create_CPPN(	CPPN *net,
 			int create_disabled_links,	// Boolean. If true, will fully connect all outputs, but disable those not indicated by outputs_linked
 			struct NEAT_Params *parameters );
 
+// Copy constructor
 int clone_CPPN( CPPN *net, const CPPN *original );
 
-// Allocate storage for a new CPPN.
-// If net==0, no links/nodes are allocated; otherwise, the respective num_ values will be used.
+// Allocate storage for a new CPPN guided by the respective num_* values
+// Allocation aside, no initialisation takes place.
 int allocate_CPPN( CPPN *net );
 
 // Destructor
