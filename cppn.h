@@ -19,7 +19,8 @@ typedef struct CPPN {
 	CPPN_Node *nodes;		// Includes input, output and hidden nodes, in this order
 	int num_inputs, num_outputs, num_hidden;
 	
-	CPPN_Link *links;		// Links, sorted by innovation number
+	CPPN_Link *links;		// Links, unsorted
+	CPPN_Link **links_innovsort;	// Pointers to the above, sorted by innovation number
 	CPPN_Link **links_nodesort;	// Pointers to the above, sorted by postsynaptic node id
 	int num_links;
 } CPPN;
@@ -51,6 +52,10 @@ int create_CPPN(	CPPN *net,
 
 int clone_CPPN( CPPN *net, const CPPN *original );
 
+// Allocate storage for a new CPPN.
+// If net==0, no links/nodes are allocated; otherwise, the respective num_ values will be used.
+int allocate_CPPN( CPPN *net );
+
 // Destructor
 void delete_CPPN( CPPN *trash );
 
@@ -78,7 +83,10 @@ double get_genetic_distance( CPPN *net1, CPPN *net2, const struct NEAT_Params *p
 int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *params, int target_id, int *possible_sources );
 
 // Insert a link into net, maintaining all links within net sorted by postsynaptic node id
-int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, double weight, int is_disabled, int no_realloc );
+int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, double weight, int is_disabled, unsigned int innov_id );
+
+// Calculate activation value from function and input
+double CPPN_func( enum CPPNFunc fn, double x );
 
 #endif
 
