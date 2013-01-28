@@ -5,9 +5,13 @@
 #define E_ASSERT (-2)
 
 // Safe allocation: Returns 0 or E_ALLOC on failure
-int Malloc( void *p, size_t s );
-int Calloc( void *p, size_t n, size_t s );
-int Realloc( void *p, size_t s );
+#define Malloc(p,s) Malloc_((void**)&p,s)
+#define Calloc(p,n,s) Calloc_((void**)&p,n,s)
+#define Realloc(p,s) Realloc_((void**)&p,s)
+
+int Malloc_( void **p, size_t s );
+int Calloc_( void **p, size_t n, size_t s );
+int Realloc_( void **p, size_t s );
 
 #define max(a,b) ((a)>(b)?(a):(b))
 
