@@ -74,7 +74,7 @@ int crossover_CPPN( CPPN *net, const CPPN *mate, struct NEAT_Params *params );
 double read_CPPN( CPPN *net, const struct NEAT_Params *parameters, double *coords, double *output );
 
 // Determine genetic distance
-double get_genetic_distance( CPPN *net1, CPPN *net2, const struct NEAT_Params *parameters );
+double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NEAT_Params *parameters );
 
 // ** Private methods
 
@@ -85,6 +85,10 @@ int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *par
 
 // Insert a link into net, maintaining all links within net sorted by postsynaptic node id
 int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, double weight, int is_disabled, unsigned int innov_id );
+
+// Change the innov_id of a link and update its place in net->links_innovsort.
+// link must be a pointer to the relevant element of net->links_innovsort.
+int CPPN_update_innov_id( CPPN *net, CPPN_Link **link, unsigned int new_id );
 
 // Calculate activation value from function and input
 double CPPN_func( enum CPPNFunc fn, double x );

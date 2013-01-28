@@ -27,7 +27,7 @@ struct NEAT_Params {
 // Parameters related to the NEAT algorithm proper
 	int population_size;
 	int extinction_threshold;	// Minimum number of members a species must have to survive
-	double	elimination_quota,	// Percentage of members to be culled from the low end of a species' score spectrum
+	double	survival_quota,		// Percentage of members that are allowed to reproduce
 		speciation_threshold,	// Genetic distance threshold
 		disjoint_factor,	// Factors for determining genetic distance
 		excess_factor,

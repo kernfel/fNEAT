@@ -8,220 +8,357 @@
 #include "neat.h"
 
 
+int create_Population( Population *pop, struct NEAT_Params *params, const Individual *prototype ) {
+	int err=0;
+	
+	pop->num_members = params->population_size;
+	pop->num_species = 1;
+	
+	if (( err = allocate_Population( pop ) ))
+		return err;
+	
+	int i;
+	for ( i=0; i<pop->num_members; i++ ) {
+		if (( err = clone_CPPN( &pop->members[i].genotype, &prototype->genotype ) )) {
+			pop->num_members = i;
+			delete_Population( pop );
+			return err;
+		}
+	}
+	if (( err = mutate_population( pop, params ) )
+	 || ( err = speciate_population( pop, params, prototype ) ))
+		delete_Population( pop );
+	
+	return err;
+}
 
+int allocate_Population( Population *pop ) {
+	int err=0;
+	
+	pop->members = 0;
+	pop->species_ids = 0;
+	pop->species_size = 0;
+	
+	if (( err = Calloc( pop->members, pop->num_members, sizeof *pop->members ) )
+	 || ( err = Malloc( pop->species_ids, pop->num_species*sizeof *pop->species_ids ) )
+	 || ( err = Malloc( pop->species_size, pop->num_species*sizeof *pop->species_size ) ))
+		delete_Population( pop );
 
+	return err;
+}
+
+void delete_Population( Population *pop ) {
+	int i;
+	for ( i=0; i<pop->num_members; i++ )
+		delete_CPPN( &pop->members[i].genotype );
+	free( pop->members );
+	free( pop->species_ids );
+	free( pop->species_size );
+	pop->members = 0;
+	pop->species_ids = 0;
+	pop->species_size = 0;
+}
 
 
 int epoch( Population *pop, struct NEAT_Params *params ) {
 	int err=0;
 
-// Init
-	// Allocate offspring population
-	Population *offspring=0;
-	if (( err = allocate_Population( offspring, params ) ))
+	// Determine the number of offspring each species is allowed
+	int num_offspring[pop->num_species];
+	get_population_fertility( pop, params, num_offspring );
+
+	// Reproduce whomever gets to do so
+	Individual reps[pop->num_species];
+	if (( err = reproduce_population( pop, params, num_offspring, reps ) ))
 		return err;
 
-	int i, j;
-	double total_score=0.0;
-	double species_scores[pop->num_species];
-	int species_size[pop->num_species];
-	Individual *sorted[params->population_size];
+	// Mutate the entire new generation
+	if (( err = mutate_population( pop, params ) ))
+		return err;
 
+	// Divide the offspring into species
+	if (( err = speciate_population( pop, params, reps ) ))
+		return err;
+
+	return err;
+}
+
+// Determine number of offspring per species
+void get_population_fertility( Population *pop, struct NEAT_Params *params, int *num_offspring ) {
+	int i, j;
+	double species_scores[pop->num_species];
 	for ( i=0; i<pop->num_species; i++ ) {
 		species_scores[i] = 0.0;
-		species_size[i] = 0;
 	}
 
-
-// Set up scores and sorting
-	for ( i=0; i<params->population_size; i++ ) {
-		int species_idx;
-		
-		// Determine species index
-		for ( species_idx=0; pop->species_ids[species_idx] != pop->members[i].species_id; species_idx++ );
-		
-		// Gather statistics
-		total_score =+ pop->members[i].score;
-		species_scores[species_idx] += pop->members[i].score;
-		species_size[species_idx]++;
-		
-		// Sort by score desc
-		for ( j=0; j<i; j++ ) {
-			if ( pop->members[i].score > sorted[i]->score ) {
-				memmove( sorted+j+1, sorted+j, (i-j)*sizeof *sorted );
+	// Add up all scores within a species
+	for ( i=0; i<pop->num_members; i++ ) {
+		for ( j=0; j<pop->num_species; j++ ) {
+			if ( pop->species_ids[j] == pop->members[i].species_id ) {
+				species_scores[j] += pop->members[i].score;
 				break;
 			}
 		}
-		sorted[j] = pop->members + i;
 	}
 
-
-// Determine reproduction credit ~= number of offspring per species
-	double reproduction_credit[pop->num_species];
-	int num_offspring[pop->num_species], species_creditsorted[pop->num_species];
-	int unassigned_offspring = params->population_size;
-	
+	double average_scores[pop->num_species];
+	double sum_average_scores;
+	int species_scoresort[pop->num_species];
 	for ( i=0; i<pop->num_species; i++ ) {
-		reproduction_credit[i] = species_scores[i] / species_size[i];
-		num_offspring[i] = (int)(reproduction_credit[i]*params->population_size / total_score);
+
+		// Determine average score per species
+		average_scores[i] = species_scores[i] / pop->species_size[i];
+		sum_average_scores += average_scores[i];
+
+		// Sort species by average score, descending
+		for ( j=0; j<i; j++ ) {
+			if ( average_scores[i] > average_scores[species_scoresort[j]] ) {
+				memmove( species_scoresort+j+1, species_scoresort+j, (i-j)*sizeof *species_scoresort );
+				break;
+			}
+		}
+		species_scoresort[j] = i;
+	}
+
+	// Assign offspring in proportion to a species' average score
+	int unassigned_offspring;
+	for ( i=0; i<pop->num_species; i++ ) {
+		num_offspring[i] = (int)(average_scores[i]/sum_average_scores);
 		unassigned_offspring -= num_offspring[i];
-		
-		// Sort species by reproduction credit, descending
-		for ( j=0; j<i; j++ ) {
-			if ( reproduction_credit[i] > reproduction_credit[species_creditsorted[j]] ) {
-				memmove( species_creditsorted+j+1, species_creditsorted+j, (i-j)*sizeof *species_creditsorted );
-				break;
-			}
-		}
-		species_creditsorted[j] = i;
-	}
-	
-	// Assign unassigned offspring (rounding errors) to the best species
-	for ( i=0; i<unassigned_offspring; i++ ) {
-		num_offspring[species_creditsorted[i]]++;
-	}
-	
-	// Let too small species go extinct. Also, keep track of which species are being passed on for later reference.
-	int offspring_species_ids[params->population_size];
-	offspring->num_species = 0;
-	for ( i=0; i<pop->num_species; i++ ) {
-		if ( num_offspring[i] < params->extinction_threshold ) {
-			num_offspring[i] = 0;
-		} else {
-			offspring_species_ids[offspring->num_species++] = pop->species_ids[i];
-		}
 	}
 
+	// Throw the winners some scraps from rounding error
+	for ( i=0; i<unassigned_offspring; i++ ) {
+		num_offspring[species_scoresort[i]]++;
+	}
+}
 
 // Reproduction
-	Individual *reps[pop->num_species];
-	Individual *child = offspring->members;
+int reproduce_population( Population *pop, struct NEAT_Params *params, int *num_offspring, Individual *reps ) {
+	int i, j, k=0, err=0;
+	int num_parents[pop->num_species];
+	Individual *free_slots[pop->num_members];
+
+	Individual ***mem_by_spec = get_population_ranking( pop, &err );
+	if ( err )
+		return err;
+
 	for ( i=0; i<pop->num_species; i++ ) {
+		// Let subthreshold species go extinct
+		if ( !num_offspring[i] || num_offspring[i] < params->extinction_threshold ) {
+			num_parents[i] = num_offspring[i] = 0;
+			reps[i].species_id = 0;
+		} else {
+			// Find out how many old individuals get to reproduce
+			num_parents[i] = (int)(params->survival_quota * pop->species_size[i]);
+			if ( num_parents[i] > num_offspring[i] )
+				num_parents[i] = num_offspring[i];
+			
+			// Save a random parent as representative for speciation
+			clone_CPPN( &reps[i].genotype, &mem_by_spec[i][rand()%num_parents[i]]->genotype );
+			reps[i].species_id = pop->species_ids[i];
+		}
+
+		// Eliminate the infertile individuals and post job openings in free_slots
+		for ( j=num_parents[i]; j<pop->species_size[i]; j++ ) {
+			free_slots[k] = mem_by_spec[i][j];
+			delete_CPPN( &free_slots[k]->genotype );
+			k++;
+		}
+	}
+	
+	// Error protection
+	free_slots[k] = 0;
+
+	CPPN *g;
+	k=0;
+	for ( i=0; i<pop->num_species; i++ ) {
+		for ( j=0; j<num_offspring[i]; j++ ) {
+			// Retrieve a fertile individual
+			g = &mem_by_spec[i][j%num_parents[i]]->genotype;
+			
+			// If necessary, spread its genes...
+			if ( j >= num_parents[i] ) {
+				free_slots[k]->species_id = pop->species_ids[i];
+				if (( err = clone_CPPN( &free_slots[k]->genotype, g ) ))
+					return err;
+				// ... and work with the result.
+				g = &free_slots[k++]->genotype;
+			}
+
+			// Perform crossover
+			if ( params->crossover_prob * RAND_MAX > rand() ) {
+				// Find a non-self partner in the same species
+				int l=rand()%(num_parents[i]-1);
+				if ( l >= j )
+					l++;
+				// Do the deed
+				if (( err = crossover_CPPN( g, &mem_by_spec[i][l]->genotype, params ) ))
+					return err;
+			}
+		}
+	}
+
+	free( mem_by_spec );
+
+	return err;
+}
+
+Individual ***get_population_ranking( Population *pop, int *err ) {
+	Individual ***mem_by_spec=0;
+
+	if (( *err = Malloc( mem_by_spec, pop->num_species*sizeof *mem_by_spec + pop->num_members*sizeof **mem_by_spec ) ))
+		return 0;
+
+	int i, j, all_indiv_seen=0, sp;
+	for ( sp=0; sp<pop->num_species; sp++ ) {
+		// Assign the primary array index to point to the right chunk
+		mem_by_spec[sp] = mem_by_spec[pop->num_species] + all_indiv_seen;
 		
-		// Skip extinct species
-		if ( ! num_offspring[i] )
-			continue;
-		
-		// Collect all individuals eligible for reproduction
-		int num_parents = (int)(species_size[i] * (1-params->elimination_quota));
-		Individual *members[num_parents];
-		int k=0;
-		for ( j=0; j<params->population_size; j++ ) {
-			if ( sorted[j]->species_id == pop->species_ids[i] ) {
-				members[k] = sorted[j];
-				if ( ++k == num_parents )
+		// Find all members...
+		int sp_indiv_seen=0;
+		for ( i=0; i<pop->num_members; i++ ) {
+			// ...of that species...
+			if ( pop->members[i].species_id == pop->species_ids[sp] ) {
+				// Go through the conspecifics already in place...
+				for ( j=0; j<sp_indiv_seen; j++ ) {
+					// Shove the losers back...
+					if ( pop->members[i].score > mem_by_spec[sp][j]->score ) {
+						memmove( mem_by_spec[sp]+j+1, mem_by_spec[sp]+j, (sp_indiv_seen-j)*sizeof **mem_by_spec );
+						break;
+					}
+				}
+				// ... so as to maintain order.
+				mem_by_spec[sp][j] = pop->members + i;
+				sp_indiv_seen++;
+			}
+		}
+		all_indiv_seen += sp_indiv_seen;
+	}
+
+	return mem_by_spec;
+}
+
+int mutate_population( Population *pop, struct NEAT_Params *params ) {
+	int i, k, l, err=0;
+	Node_Innovation ni[pop->num_members];
+	Link_Innovation li[pop->num_members];
+	int num_ni=0, num_li=0;
+	for ( i=0; i<pop->num_members; i++ ) {
+		// Shortcut
+		CPPN *genotype =& pop->members[i].genotype;
+
+		// Prepare for new innovations
+		ni[num_ni].replaced_link = 0;
+		li[num_li].innov_id = 0;
+
+		// Mutate
+		if (( err = mutate_CPPN( genotype, params, ni+num_ni, li+num_li ) ))
+			return err;
+
+		// Identify and collapse parallel node innovations
+		if ( ni[num_ni].replaced_link ) {
+			int collapsed=0;
+			// Check through the previous innovations
+			for ( k=0; k<num_ni; k++ ) {
+				if ( ni[k].replaced_link == ni[num_ni].replaced_link ) {
+					// An equivalent innovation is found. Find the relevant links and collapse their innov_id's
+					for ( l=genotype->num_links-1; l>=0 && collapsed<2; l-- ) {
+						if ( genotype->links_innovsort[l]->innov_id == ni[num_ni].link_in ) {
+							CPPN_update_innov_id( genotype, genotype->links_innovsort+l, ni[k].link_in );
+							collapsed++;
+						} else if ( genotype->links_innovsort[l]->innov_id == ni[num_ni].link_out ) {
+							CPPN_update_innov_id( genotype, genotype->links_innovsort+l, ni[k].link_out );
+							collapsed++;
+						}
+					}
+					ASSERT( collapsed==2 );
 					break;
+				}
+			}
+			
+			// A truly new innovation
+			if ( ! collapsed )
+				num_ni++;
+		}
+
+		// Identify and collapse parallel link innovations
+		if ( li[num_li].innov_id ) {
+			int collapsed=0;
+			// Check through the previous innovations
+			for ( k=0; k<num_li; k++ ) {
+				if ( li[k].type == li[num_li].type && li[k].from == li[num_li].from && li[k].to == li[num_li].to ) {
+					// An equivalent innovation is found. Find the relevant link and collapse its innov_id
+					for ( l=genotype->num_links-1; l>=0; l-- ) {
+						if ( genotype->links_innovsort[l]->innov_id == li[num_li].innov_id ) {
+							CPPN_update_innov_id( genotype, genotype->links_innovsort+l, li[k].innov_id );
+							collapsed = 1;
+							break;
+						}
+					}
+					ASSERT( collapsed );
+					break;
+				}
+			}
+			
+			// A truly new innovation
+			if ( ! collapsed )
+				num_li++;
+		}
+	}
+
+	return err;
+}
+
+int speciate_population( Population *pop, struct NEAT_Params *params, const Individual *reps ) {
+	int i, j, num_new_species=0;
+	
+	for ( i=0; i<pop->num_species; i++ ) {
+		pop->species_size[i] = 0;
+	}
+	
+	int new_species_size[pop->num_members];
+	unsigned int new_species_ids[pop->num_members];
+	Individual *new_reps[pop->num_members];
+	for ( i=0; i<pop->num_members; i++ ) {
+		int assigned=0;
+		
+		// Check for same species first...
+		if ( pop->members[i].species_id ) {
+			for ( j=0; j<pop->num_species; j++ ) {
+				if ( reps[j].species_id == pop->members[i].species_id ) {
+					double distance = get_genetic_distance( &pop->members[i].genotype, &reps[j].genotype, params );
+					if ( distance < params->speciation_threshold ) {
+						pop->species_size[j]++;
+						assigned = 1;
+						break;
+					}
+				}
 			}
 		}
 		
-		// Select a random representative for species assignment
-		reps[i] = members[(int)((double)num_parents*rand()/RAND_MAX)];
-		
-		// Reproduce!
-		Node_Innovation node_innovations[num_offspring[i]];
-		Link_Innovation link_innovations[num_offspring[i]];
-		int num_node_innovations=0, num_link_innovations=0;
-		for ( j=0; j<num_offspring[i]; j++ ) {
-			
-			if (( err = clone_CPPN( child->genotype, members[j%num_parents]->genotype ) ))
-				goto fail;
-			
-			// Crossover with random eligible conspecific
-			if ( num_parents > 1 && params->crossover_prob * RAND_MAX > rand() ) {
-				k = rand() % (num_parents-1);
-				if ( k >= j%num_parents )
-					k++;
-				if (( err = crossover_CPPN( child->genotype, members[k]->genotype, params ) ))
-					goto fail;
-			}
-			
-			// Mutate
-			node_innovations[num_node_innovations].replaced_link = 0;
-			link_innovations[num_link_innovations].innov_id = 0;
-			if (( err = mutate_CPPN(
-				child->genotype,
-				params,
-				node_innovations+num_node_innovations,
-				link_innovations+num_link_innovations )
-			))
-				goto fail;
-			
-			// Identify and unify parallel innovations
-			// Node insertion:
-			if ( node_innovations[num_node_innovations].replaced_link ) {
-				int unified=0;
-				for ( k=0; k<num_node_innovations; k++ ) {
-					if ( node_innovations[k].replaced_link == node_innovations[num_node_innovations].replaced_link ) {
-						int l;
-						for ( l=child->genotype->num_links-1; l>=0 && unified < 2; l-- ) {
-							if ( child->genotype->links[l].innov_id == node_innovations[num_node_innovations].link_in ) {
-								child->genotype->links[l].innov_id = node_innovations[k].link_in;
-								unified++;
-							} else if ( child->genotype->links[l].innov_id == node_innovations[num_node_innovations].link_out ) {
-								child->genotype->links[l].innov_id = node_innovations[k].link_out;
-								unified++;
-							}
-						}
+		// Check for other ancestor species...
+		if ( ! assigned ) {
+			for ( j=0; j<pop->num_species; j++ ) {
+				if ( reps[j].species_id && reps[j].species_id != pop->members[i].species_id ) {
+					double distance = get_genetic_distance( &pop->members[i].genotype, &reps[j].genotype, params );
+					if ( distance < params->speciation_threshold ) {
+						pop->members[i].species_id = reps[j].species_id;
+						pop->species_size[j]++;
+						assigned = 1;
 						break;
 					}
 				}
-				if ( ! unified )
-					num_node_innovations++;
-			}
-			
-			// Link insertion:
-			if ( link_innovations[num_link_innovations].innov_id ) {
-				int unified=0;
-				for ( k=0; k<num_link_innovations; k++ ) {
-					if ( link_innovations[k].type == link_innovations[num_link_innovations].type \
-					  && link_innovations[k].from == link_innovations[num_link_innovations].from \
-					  && link_innovations[k].to == link_innovations[num_link_innovations].to ) {
-						int l;
-						for ( l=child->genotype->num_links-1; l>=0; l-- ) {
-							if ( child->genotype->links[l].innov_id == link_innovations[num_link_innovations].innov_id ) {
-								child->genotype->links[l].innov_id = link_innovations[k].innov_id;
-								unified = 1;
-								break;
-							}
-						}
-						break;
-					}
-				}
-				if ( ! unified )
-					num_link_innovations++;
-			}
-			
-			child++;
-
-		} // Inner reproduction loop
-	} // Species loop
-
-
-// Assign each offspring to species
-	{
-	int num_new_species=0;
-	Individual *new_reps[params->population_size];
-	for ( i=0; i<params->population_size; i++ ) {
-		int assigned=0;
-		
-		// Find its allegiance to an ancestor species...
-		for ( j=0; j<pop->num_species; j++ ) {
-			if ( ! num_offspring[j] )
-				continue;
-			double distance = get_genetic_distance( offspring->members[i].genotype, reps[j]->genotype, params );
-			if ( distance < params->speciation_threshold ) {
-				offspring->members[i].species_id = reps[j]->species_id;
-				assigned = 1;
-				break;
 			}
 		}
 		
 		// ... or to a newly created species...
 		if ( ! assigned ) {
-			for ( j=0; j<num_new_species; j++ ) {
-				double distance = get_genetic_distance( offspring->members[i].genotype, new_reps[j]->genotype, params );
+			for ( j=num_new_species-1; j>=0; j-- ) {
+				double distance = get_genetic_distance( &pop->members[i].genotype, &new_reps[j]->genotype, params );
 				if ( distance < params->speciation_threshold ) {
-					offspring->members[i].species_id = new_reps[j]->species_id;
+					pop->members[i].species_id = new_reps[j]->species_id;
+					new_species_size[j]++;
 					assigned = 1;
 					break;
 				}
@@ -230,29 +367,26 @@ int epoch( Population *pop, struct NEAT_Params *params ) {
 		
 		// ... or create a new species, proudly representing!
 		if ( ! assigned ) {
-			offspring_species_ids[offspring->num_species++] = params->species_counter;
-			offspring->members[i].species_id = params->species_counter++;
-			new_reps[num_new_species++] = offspring->members + i;
+			pop->members[i].species_id = \
+			new_species_ids[num_new_species] = ++params->species_counter;
+			new_reps[num_new_species] = pop->members + i;
+			new_species_size[num_new_species++] = 1;
 		}
-	}}
+	}
 	
-	// Update the offspring species list
-	if (( err = Malloc(offspring->species_ids, offspring->num_species*sizeof *offspring->species_ids) ))
-		goto fail;
-	memcpy( offspring->species_ids, offspring_species_ids, offspring->num_species*sizeof *offspring->species_ids );
-
-	return err;
-
-fail:
-	// Cleanup after catastrophic failure
-	delete_Population( offspring );
+	int err=0;
+	if (( err = Realloc( pop->species_ids, pop->num_species+num_new_species*sizeof *pop->species_ids ) ))
+		return err;
+	if (( err = Realloc( pop->species_size, pop->num_species+num_new_species*sizeof *pop->species_size ) )) {
+		Realloc( pop->species_ids, pop->num_species*sizeof *pop->species_ids );
+		return err;
+	}
+	memcpy( pop->species_ids+pop->num_species, new_species_ids, num_new_species*sizeof *new_species_ids );
+	memcpy( pop->species_size+pop->num_species, new_species_size, num_new_species*sizeof *new_species_size );
+	pop->num_species += num_new_species;
+	
 	return err;
 }
-
-
-
-
-
 
 
 

@@ -324,6 +324,29 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 	return err;
 }
 
+int CPPN_update_innov_id( CPPN *net, CPPN_Link **link, unsigned int new_id ) {
+	ASSERT( link >= net->links_innovsort && link < net->links_innovsort+net->num_links );
+	
+	int i=link-net->links_innovsort, incr = new_id > (*link)->innov_id ? 1 : (-1);
+	CPPN_Link **lpp, *l = *link;
+	for ( lpp=link; i>0 && i<net->num_links-1; lpp+=incr ) {
+		if ( lpp[incr]->innov_id > new_id ) {
+			break;
+		}
+		i += incr;
+	}
+	if ( lpp != link ) {
+		if ( incr == 1 )
+			memmove( link+1, link, (lpp-link)*sizeof *lpp );
+		else
+			memmove( lpp+1, lpp, (link-lpp)*sizeof *lpp );
+		*lpp = l;
+		l->innov_id = new_id;
+	}
+
+	return 0;
+}
+
 double CPPN_func( enum CPPNFunc fn, double x ) {
 	switch ( fn ) {
 		case CF_ABS:
@@ -407,7 +430,7 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, d
 	return diff;
 }
 
-double get_genetic_distance( CPPN *net1, CPPN *net2, const struct NEAT_Params *params ) {
+double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NEAT_Params *params ) {
 	int disjoint=0, excess=0, matches=0, n=max(net1->num_links, net2->num_links);
 	double w1, w2, wdiff=0.0;
 	int i=0, j=0;
