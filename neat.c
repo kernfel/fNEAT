@@ -17,6 +17,9 @@ int create_Population( Population *pop, struct NEAT_Params *params, const Indivi
 	if (( err = allocate_Population( pop ) ))
 		return err;
 	
+	pop->species_ids[0] = ++params->species_counter;
+	pop->species_size[0] = pop->num_members;
+	
 	int i;
 	for ( i=0; i<pop->num_members; i++ ) {
 		if (( err = clone_CPPN( &pop->members[i].genotype, &prototype->genotype ) )) {
@@ -24,6 +27,7 @@ int create_Population( Population *pop, struct NEAT_Params *params, const Indivi
 			delete_Population( pop );
 			return err;
 		}
+		pop->members[i].species_id = pop->species_ids[0];
 	}
 	if (( err = mutate_population( pop, params ) )
 	 || ( err = speciate_population( pop, params, prototype ) ))
@@ -63,13 +67,9 @@ void delete_Population( Population *pop ) {
 int epoch( Population *pop, struct NEAT_Params *params ) {
 	int err=0;
 
-	// Determine the number of offspring each species is allowed
-	int num_offspring[pop->num_species];
-	get_population_fertility( pop, params, num_offspring );
-
-	// Reproduce whomever gets to do so
+	// Initialise next generation whilst saving a set of species representatives
 	Individual reps[pop->num_species];
-	if (( err = reproduce_population( pop, params, num_offspring, reps ) ))
+	if (( err = reproduce_population( pop, params, reps ) ))
 		return err;
 
 	// Mutate the entire new generation
@@ -81,6 +81,94 @@ int epoch( Population *pop, struct NEAT_Params *params ) {
 		return err;
 
 	return err;
+}
+
+// Reproduction
+int reproduce_population( Population *pop, struct NEAT_Params *params, Individual *reps ) {
+	int i, j, k=0, err=0;
+
+	// Determine the number of offspring each species is allowed
+	int num_offspring[pop->num_species];
+	get_population_fertility( pop, params, num_offspring );
+
+	// Get ranking
+	Individual ***mem_by_spec = get_population_ranking( pop, &err );
+	if ( err )
+		return err;
+
+	// Determine survivors, remove the rest
+	int num_parents[pop->num_species];
+	Individual *free_slots[pop->num_members];
+	int species_processed=0;
+	for ( i=0; i<pop->num_species; i++ ) {
+		// Let subthreshold species go extinct
+		if ( !num_offspring[i] || num_offspring[i] < params->extinction_threshold ) {
+			num_parents[i] = num_offspring[i] = 0;
+			reps[i].species_id = 0;
+		} else {
+			// Find out how many old individuals get to reproduce
+			num_parents[i] = (int)(params->survival_quota * pop->species_size[i]);
+			if ( num_parents[i] > num_offspring[i] )
+				num_parents[i] = num_offspring[i];
+			
+			// Save a random parent as representative for speciation
+			if (( err = clone_CPPN( &reps[i].genotype, &mem_by_spec[i][rand()%num_parents[i]]->genotype ) ))
+				goto failure;
+			reps[i].species_id = pop->species_ids[i];
+		}
+
+		// Eliminate the infertile individuals and post job openings in free_slots
+		for ( j=num_parents[i]; j<pop->species_size[i]; j++ ) {
+			free_slots[k] = mem_by_spec[i][j];
+			delete_CPPN( &free_slots[k]->genotype );
+			k++;
+		}
+		species_processed++;
+	}
+	
+	// Error protection
+	free_slots[k] = 0;
+
+	// Repopulate from the survivors
+	CPPN *g;
+	k=0;
+	for ( i=0; i<pop->num_species; i++ ) {
+		for ( j=0; j<num_offspring[i]; j++ ) {
+			// Retrieve a fertile individual
+			g = &mem_by_spec[i][j%num_parents[i]]->genotype;
+			
+			// If necessary, spread its genes...
+			if ( j >= num_parents[i] ) {
+				free_slots[k]->species_id = pop->species_ids[i];
+				if (( err = clone_CPPN( &free_slots[k]->genotype, g ) ))
+					goto failure;
+				// ... and work with the result.
+				g = &free_slots[k++]->genotype;
+			}
+
+			// Perform crossover
+			if ( params->crossover_prob * RAND_MAX > rand() ) {
+				// Find a non-self partner in the same species
+				int l=rand()%(num_parents[i]-1);
+				if ( l >= j )
+					l++;
+				// Do the deed
+				if (( err = crossover_CPPN( g, &mem_by_spec[i][l]->genotype, params ) ))
+					goto failure;
+			}
+		}
+	}
+
+cleanup:
+	free( mem_by_spec );
+
+	return err;
+
+failure:
+	for ( i=0; i<species_processed; i++ )
+		if ( reps[i].species_id )
+			delete_CPPN( &reps[i].genotype );
+	goto cleanup;
 }
 
 // Determine number of offspring per species
@@ -131,77 +219,6 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 	for ( i=0; i<unassigned_offspring; i++ ) {
 		num_offspring[species_scoresort[i]]++;
 	}
-}
-
-// Reproduction
-int reproduce_population( Population *pop, struct NEAT_Params *params, int *num_offspring, Individual *reps ) {
-	int i, j, k=0, err=0;
-	int num_parents[pop->num_species];
-	Individual *free_slots[pop->num_members];
-
-	Individual ***mem_by_spec = get_population_ranking( pop, &err );
-	if ( err )
-		return err;
-
-	for ( i=0; i<pop->num_species; i++ ) {
-		// Let subthreshold species go extinct
-		if ( !num_offspring[i] || num_offspring[i] < params->extinction_threshold ) {
-			num_parents[i] = num_offspring[i] = 0;
-			reps[i].species_id = 0;
-		} else {
-			// Find out how many old individuals get to reproduce
-			num_parents[i] = (int)(params->survival_quota * pop->species_size[i]);
-			if ( num_parents[i] > num_offspring[i] )
-				num_parents[i] = num_offspring[i];
-			
-			// Save a random parent as representative for speciation
-			clone_CPPN( &reps[i].genotype, &mem_by_spec[i][rand()%num_parents[i]]->genotype );
-			reps[i].species_id = pop->species_ids[i];
-		}
-
-		// Eliminate the infertile individuals and post job openings in free_slots
-		for ( j=num_parents[i]; j<pop->species_size[i]; j++ ) {
-			free_slots[k] = mem_by_spec[i][j];
-			delete_CPPN( &free_slots[k]->genotype );
-			k++;
-		}
-	}
-	
-	// Error protection
-	free_slots[k] = 0;
-
-	CPPN *g;
-	k=0;
-	for ( i=0; i<pop->num_species; i++ ) {
-		for ( j=0; j<num_offspring[i]; j++ ) {
-			// Retrieve a fertile individual
-			g = &mem_by_spec[i][j%num_parents[i]]->genotype;
-			
-			// If necessary, spread its genes...
-			if ( j >= num_parents[i] ) {
-				free_slots[k]->species_id = pop->species_ids[i];
-				if (( err = clone_CPPN( &free_slots[k]->genotype, g ) ))
-					return err;
-				// ... and work with the result.
-				g = &free_slots[k++]->genotype;
-			}
-
-			// Perform crossover
-			if ( params->crossover_prob * RAND_MAX > rand() ) {
-				// Find a non-self partner in the same species
-				int l=rand()%(num_parents[i]-1);
-				if ( l >= j )
-					l++;
-				// Do the deed
-				if (( err = crossover_CPPN( g, &mem_by_spec[i][l]->genotype, params ) ))
-					return err;
-			}
-		}
-	}
-
-	free( mem_by_spec );
-
-	return err;
 }
 
 Individual ***get_population_ranking( Population *pop, int *err ) {

@@ -35,16 +35,23 @@ int epoch( Population *pop, struct NEAT_Params *params );
 
 // ** Private methods
 
+// Initialise the next generation based on data from the current generation's evaluation
+// representatives is populated with copies of individuals from the current generation to allow for speciation
+int reproduce_population( Population *pop, struct NEAT_Params *params, Individual *representatives );
+
 // Apply mutation (without crossover) to each member of the population
 int mutate_population( Population *pop, struct NEAT_Params *params );
 
-// Divide the population into species, disregarding any individual's species_id
-// representatives must not point to members of the population lest they be overwritten.
+// Divide the population into species
+// Individuals are preferentially kept within the species indicated by their species_id, if still compatible.
 int speciate_population( Population *pop, struct NEAT_Params *params, const Individual *representatives );
 
-
+// Determine the number of offspring each species is allowed
 void get_population_fertility( Population *pop, struct NEAT_Params *params, int *num_offspring );
-int reproduce_population( Population *pop, struct NEAT_Params *params, int *num_offspring, Individual *reps );
+
+// Returns a 2D array of pointers sorting a population's members by species index (asc), then individual score (desc).
+// Individuals are accessed at x[species_index][individual_index].
+// At the end of life, simply free() the returned pointer.
 Individual ***get_population_ranking( Population *pop, int *err );
 
 #endif
