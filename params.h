@@ -2,9 +2,9 @@
 #define _PARAMS_H
 
 
-#define CFL_USE_DIST		(1 << 0)
-#define CFL_USE_BIAS		(1 << 1)
-#define CFL_ALLOW_RECURRENCE	(1 << 2)
+#define CFL_USE_DIST		(1 << 0) // Use calculated distance input
+#define CFL_USE_BIAS		(1 << 1) // Use a constant bias (1) input
+#define CFL_ALLOW_RECURRENCE	(1 << 2) // Allow recurrent connections, including loops with multiple nodes
 #define CFL_ALLOW_O_TO_O	(1 << 3)
 #define CFL_SQUARE_DIST		(1 << 4)
 
@@ -26,7 +26,7 @@ struct NEAT_Params {
 
 // Parameters related to the NEAT algorithm proper
 	int population_size;
-	int extinction_threshold;	// Minimum number of members a species must have to survive
+	int extinction_threshold;	// Minimum number of offspring a species must have to survive
 	double	survival_quota,		// Percentage of members that are allowed to reproduce
 		speciation_threshold,	// Genetic distance threshold
 		disjoint_factor,	// Factors for determining genetic distance

@@ -276,8 +276,18 @@ int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *par
 int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, double weight, int is_disabled, unsigned int innov_id ) {
 	int err=0;
 
+	CPPN_Link *tmp=net->links;
 	if (( err = Realloc( net->links, (net->num_links+1)*sizeof *net->links ) ))
 		return err;
+	// Keep the sort pointers looking the right way
+	if ( tmp != net->links ) {
+		int i;
+		size_t diff=tmp-net->links;
+		for ( i=0; i<net->num_links; i++ ) {
+			net->links_nodesort[i] += diff;
+			net->links_innovsort[i] += diff;
+		}
+	}
 	if (( err = Realloc( net->links_nodesort, (net->num_links+1)*sizeof *net->links_nodesort ) )) {
 		Realloc( net->links, net->num_links*sizeof *net->links );
 		return err;
@@ -295,8 +305,6 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 	l->to = to;
 	l->weight = weight;
 	l->is_disabled = is_disabled;
-	
-	net->num_links++;
 	
 	// Insert pointer into links_nodesort
 	int i=0;
@@ -320,6 +328,8 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 	if ( i )
 		memmove( lpp+1, lpp, i*sizeof *lpp );
 	*lpp = l;
+	
+	net->num_links++;
 	
 	return err;
 }
