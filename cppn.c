@@ -247,7 +247,7 @@ int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *par
 		if ( net->links[i].from == target_id ) {
 			n += possible_sources[net->links[i].to];
 			possible_sources[net->links[i].to] = 0;
-			n += CPPN_exclude_recurrent_links( net, params, target_id, possible_sources );
+			n += CPPN_exclude_recurrent_links( net, params, net->links[i].to, possible_sources );
 		}
 	}
 	

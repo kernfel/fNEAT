@@ -20,7 +20,7 @@ typedef struct Population {
 
 // ** Constructors
 // Spawn an population from scratch, using prototype as a seed
-int create_Population( Population *pop, struct NEAT_Params *parameters, const Individual *prototype );
+int create_Population( Population *pop, struct NEAT_Params *parameters, const CPPN *prototype );
 
 // Allocate memory for an entire population, guided by the num_* values
 int allocate_Population( Population *pop );

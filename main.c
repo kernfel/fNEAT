@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include "params.h"
@@ -11,7 +12,7 @@ void dump_CPPN( CPPN *net );
 int main() {
 	struct NEAT_Params params;
 	Population pop;
-	Individual seed;
+	CPPN seed;
 	
 	params.flags = CFL_USE_BIAS;
 	params.num_dimensions = 1;
@@ -40,9 +41,10 @@ int main() {
 	params.species_counter = 0;
 
 
-	create_CPPN( &seed.genotype, 1, (enum CPPNFunc[1]){CF_SIGMOID}, (int[1]){1}, 0, &params );
+	srand(time(0));
+	create_CPPN( &seed, 1, (enum CPPNFunc[1]){CF_SIGMOID}, (int[1]){1}, 0, &params );
 	create_Population( &pop, &params, &seed );
-	delete_CPPN( &seed.genotype );
+	delete_CPPN( &seed );
 
 	int i,j,k;
 	double test[4][3] = {

@@ -8,7 +8,7 @@
 #include "neat.h"
 
 
-int create_Population( Population *pop, struct NEAT_Params *params, const Individual *prototype ) {
+int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *prototype ) {
 	int err=0;
 	
 	pop->num_members = params->population_size;
@@ -17,12 +17,16 @@ int create_Population( Population *pop, struct NEAT_Params *params, const Indivi
 	if (( err = allocate_Population( pop ) ))
 		return err;
 	
-	pop->species_ids[0] = ++params->species_counter;
+	Individual adam;
+	adam.genotype = *prototype;
+	adam.species_id = ++params->species_counter;
+	
+	pop->species_ids[0] = adam.species_id;
 	pop->species_size[0] = pop->num_members;
 	
 	int i;
 	for ( i=0; i<pop->num_members; i++ ) {
-		if (( err = clone_CPPN( &pop->members[i].genotype, &prototype->genotype ) )) {
+		if (( err = clone_CPPN( &pop->members[i].genotype, prototype ) )) {
 			pop->num_members = i;
 			delete_Population( pop );
 			return err;
@@ -30,7 +34,7 @@ int create_Population( Population *pop, struct NEAT_Params *params, const Indivi
 		pop->members[i].species_id = pop->species_ids[0];
 	}
 	if (( err = mutate_population( pop, params ) )
-	 || ( err = speciate_population( pop, params, prototype ) ))
+	 || ( err = speciate_population( pop, params, &adam ) ))
 		delete_Population( pop );
 	
 	return err;
@@ -209,9 +213,9 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 	}
 
 	// Assign offspring in proportion to a species' average score
-	int unassigned_offspring;
+	int unassigned_offspring = params->population_size;
 	for ( i=0; i<pop->num_species; i++ ) {
-		num_offspring[i] = (int)(average_scores[i]/sum_average_scores);
+		num_offspring[i] = (int)(params->population_size*average_scores[i]/sum_average_scores);
 		unassigned_offspring -= num_offspring[i];
 	}
 
@@ -230,7 +234,7 @@ Individual ***get_population_ranking( Population *pop, int *err ) {
 	int i, j, all_indiv_seen=0, sp;
 	for ( sp=0; sp<pop->num_species; sp++ ) {
 		// Assign the primary array index to point to the right chunk
-		mem_by_spec[sp] = mem_by_spec[pop->num_species] + all_indiv_seen;
+		mem_by_spec[sp] = (Individual **) &mem_by_spec[pop->num_species + all_indiv_seen];
 		
 		// Find all members...
 		int sp_indiv_seen=0;
