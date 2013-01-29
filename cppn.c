@@ -262,8 +262,6 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 	
 	if ( ! innov_id )
 		innov_id = ++params->innov_counter;
-	
-	net->num_links++;
 
 	int i;
 	// Find the right place in the innov_id-sorted array
@@ -272,7 +270,7 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 			break;
 	}
 
-	CPPN_Link *l = &net->links[net->num_links-i];
+	CPPN_Link *l = &net->links[i];
 	if ( net->num_links > i ) {
 		// Move over, newbies!
 		memmove( l+1, l, i*sizeof *l );
@@ -282,6 +280,8 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 	l->to = to;
 	l->weight = weight;
 	l->is_disabled = is_disabled;
+	
+	net->num_links++;
 	
 	return err;
 }
@@ -346,11 +346,7 @@ double CPPN_func( enum CPPNFunc fn, double x ) {
 
 double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, double *output ) {
 	int i,j;
-	
-	// Flush first
-	for ( i=net->num_inputs; i<net->num_inputs+net->num_outputs+net->num_hidden; i++ ) {
-		net->nodes[i].activation = 0.0;
-	}
+	int num_nodes = net->num_inputs+net->num_hidden+net->num_outputs;
 	
 	// Set input values
 	for ( i=0; i<2*params->num_dimensions; i++ ) {
@@ -367,19 +363,23 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, d
 		net->nodes[i].activation = CPPN_func(net->nodes[i].func, 1.0);
 	}
 	
+	// Flush
+	for ( i=net->num_inputs; i<num_nodes; i++ ) {
+		net->nodes[i].activation = 0.0;
+	}
+	
 	// Cycle through the net until nothing changes or num_activations is reached
 	int k, k_incr, k_max;
 	if ( params->flags & CFL_ALLOW_RECURRENCE ) {
 		k_incr = 1;
 		k_max = params->num_activations;
 	} else {
-		k_incr = 0;
-		k_max = 1;
+		k_incr = 1;
+		k_max = 0;
 	}
 	
-	int num_nodes = net->num_inputs+net->num_hidden+net->num_outputs;
 	double diff;
-	for ( k=0; k<k_max; k+=k_incr ) {
+	for ( k=0; !k_max || k<k_max; k+=k_incr ) {
 		diff = 0.0;
 		
 		// Go through each node
@@ -398,6 +398,7 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, d
 			diff += fabs( a - net->nodes[i].activation );
 			net->nodes[i].activation = a;
 		}
+
 		if ( diff == 0.0 )
 			break;
 	}
