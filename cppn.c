@@ -37,8 +37,8 @@ int create_CPPN(	CPPN *net,
 	// Create input and output nodes
 	for ( i=0; i<net->num_inputs; i++ )
 		net->nodes[i].func = CF_LINEAR;
-	for ( i=net->num_inputs; i<net->num_inputs+num_outputs; i++ )
-		net->nodes[i].func = output_funcs[i];
+	for ( i=0; i<num_outputs; i++ )
+		net->nodes[i+net->num_inputs].func = output_funcs[i];
 
 	// Create links from input to output nodes, where applicable
 	for ( i=0; i<num_outputs; i++ ) {
@@ -50,8 +50,6 @@ int create_CPPN(	CPPN *net,
 			net->links[j].to = i+net->num_inputs;
 			net->links[j].weight = 0;
 			net->links[j].is_disabled = ! outputs_linked[i];
-			net->links_innovsort[j] = net->links+j;
-			net->links_nodesort[j] = net->links+j;
 		}
 	}
 
@@ -72,13 +70,6 @@ int clone_CPPN( CPPN *net, const CPPN *original ) {
 	memcpy( net->nodes, original->nodes, (net->num_inputs+net->num_outputs+net->num_hidden)*sizeof *net->nodes );
 	memcpy( net->links, original->links, net->num_links*sizeof *net->links );
 
-	// Copy sorting details, relying on sound sorting in the original and some pointer arithmetic
-	int i, offset=net->links-original->links;
-	for ( i=0; i<net->num_links; i++ ) {
-		net->links_innovsort[i] = original->links_innovsort[i] + offset;
-		net->links_nodesort[i] = original->links_nodesort[i] + offset;
-	}
-
 	return err;
 }
 
@@ -87,12 +78,8 @@ int allocate_CPPN( CPPN *net ) {
 
 	net->nodes = 0;
 	net->links = 0;
-	net->links_innovsort = 0;
-	net->links_nodesort = 0;
 
 	if (( err = Malloc( net->links, net->num_links*sizeof *net->links ) ) \
-	 || ( err = Calloc( net->links_innovsort, net->num_links, sizeof *net->links_innovsort ) ) \
-	 || ( err = Calloc( net->links_nodesort, net->num_links, sizeof *net->links_nodesort ) ) \
 	 || ( err = Malloc( net->nodes, (net->num_inputs+net->num_outputs+net->num_hidden)*sizeof *net->nodes ) )) {
 		delete_CPPN( net );
 	}
@@ -103,11 +90,7 @@ int allocate_CPPN( CPPN *net ) {
 void delete_CPPN( CPPN *net ) {
 	free( net->nodes );
 	free( net->links );
-	free( net->links_innovsort );
-	free( net->links_nodesort );
 	net->links = 0;
-	net->links_innovsort = 0;
-	net->links_nodesort = 0;
 	net->nodes = 0;
 }
 
@@ -182,11 +165,9 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 		
 		// Exclude existing links
 		for ( i=0; i<net->num_links; i++ ) {
-			if ( net->links_nodesort[i]->to == target_id ) {
-				possible_sources[net->links_nodesort[i]->from] = 0;
+			if ( net->links[i].to == target_id ) {
+				possible_sources[net->links[i].from] = 0;
 				num_possible_sources--;
-			} else if ( net->links_nodesort[i]->to > target_id ) {
-				break;
 			}
 		}
 		
@@ -276,82 +257,70 @@ int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *par
 int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, double weight, int is_disabled, unsigned int innov_id ) {
 	int err=0;
 
-	CPPN_Link *tmp=net->links;
 	if (( err = Realloc( net->links, (net->num_links+1)*sizeof *net->links ) ))
 		return err;
-	// Keep the sort pointers looking the right way
-	if ( tmp != net->links ) {
-		int i;
-		size_t diff=tmp-net->links;
-		for ( i=0; i<net->num_links; i++ ) {
-			net->links_nodesort[i] += diff;
-			net->links_innovsort[i] += diff;
-		}
-	}
-	if (( err = Realloc( net->links_nodesort, (net->num_links+1)*sizeof *net->links_nodesort ) )) {
-		Realloc( net->links, net->num_links*sizeof *net->links );
-		return err;
-	}
-	if (( err = Realloc( net->links_innovsort, (net->num_links+1)*sizeof *net->links_innovsort ) )) {
-		Realloc( net->links_nodesort, net->num_links*sizeof *net->links_nodesort );
-		Realloc( net->links, net->num_links*sizeof *net->links );
-		return err;
+	
+	if ( ! innov_id )
+		innov_id = ++params->innov_counter;
+	
+	net->num_links++;
+
+	int i;
+	// Find the right place in the innov_id-sorted array
+	for ( i=net->num_links; i>0; i-- ) {
+		if ( net->links[i-1].innov_id < innov_id )
+			break;
 	}
 
-	// Insert the new link and set its parameters
-	CPPN_Link *l = net->links + net->num_links;
-	l->innov_id = innov_id ? innov_id : ++params->innov_counter;
+	CPPN_Link *l = &net->links[net->num_links-i];
+	if ( net->num_links > i ) {
+		// Move over, newbies!
+		memmove( l+1, l, i*sizeof *l );
+	}
+	l->innov_id = innov_id;
 	l->from = from;
 	l->to = to;
 	l->weight = weight;
 	l->is_disabled = is_disabled;
 	
-	// Insert pointer into links_nodesort
-	int i=0;
-	CPPN_Link **lpp;
-	for ( lpp=net->links_nodesort+net->num_links; lpp>net->links_nodesort; lpp-- ) {
-		if ( (*(lpp-1))->to <= to )
-			break;
-		i++;
-	}
-	if ( i )
-		memmove( lpp+1, lpp, i*sizeof *lpp );
-	*lpp = l;
-	
-	// Insert pointer into links_innovsort
-	i=0;
-	for ( lpp=net->links_innovsort+net->num_links; lpp>net->links_innovsort; lpp-- ) {
-		if ( (*(lpp-1))->innov_id < l->innov_id )
-			break;
-		i++;
-	}
-	if ( i )
-		memmove( lpp+1, lpp, i*sizeof *lpp );
-	*lpp = l;
-	
-	net->num_links++;
-	
 	return err;
 }
 
-int CPPN_update_innov_id( CPPN *net, CPPN_Link **link, unsigned int new_id ) {
-	ASSERT( link >= net->links_innovsort && link < net->links_innovsort+net->num_links );
-	
-	int i=link-net->links_innovsort, incr = new_id > (*link)->innov_id ? 1 : (-1);
-	CPPN_Link **lpp, *l = *link;
-	for ( lpp=link; i>0 && i<net->num_links-1; lpp+=incr ) {
-		if ( lpp[incr]->innov_id > new_id ) {
-			break;
+int CPPN_update_innov_id( CPPN *net, unsigned int old_id, unsigned int new_id ) {
+	int i,j;
+	for ( i=net->num_links-1; i>=0; i-- ) {
+		if ( net->links[i].innov_id == old_id ) {
+			net->links[i].innov_id = new_id;
+
+			// Check first: Do we need to move at all?
+			if (
+				( i==0 || net->links[i-1].innov_id < new_id ) // Lowest or younger than lower neighbour
+				&& ( i==net->num_links-1 || net->links[i+1].innov_id > new_id ) // Highest or older than higher neighbour
+			)
+				break;
+			
+			CPPN_Link tmp;
+			// Excise
+			memcpy( &tmp, &net->links[i], sizeof tmp );
+			if ( old_id > new_id ) {
+				// Search downwards...
+				for ( j=i; j>0; j-- )
+					if ( net->links[j-1].innov_id < new_id )
+						break;
+				// Move the block [j..i] up by one
+				memmove( &net->links[j+1], &net->links[j], (i-j)*sizeof tmp );
+			} else {
+				// Search upwards...
+				for ( j=i; j<net->num_links-1; j++ )
+					if ( net->links[j+1].innov_id > new_id )
+						break;
+				// Move the block [i..j] down by one
+				memmove( &net->links[i-1], &net->links[i], (j-i)*sizeof tmp );
+			}
+			
+			// Reinsert
+			memcpy( &net->links[j], &tmp, sizeof tmp );
 		}
-		i += incr;
-	}
-	if ( lpp != link ) {
-		if ( incr == 1 )
-			memmove( link+1, link, (lpp-link)*sizeof *lpp );
-		else
-			memmove( lpp+1, lpp, (link-lpp)*sizeof *lpp );
-		*lpp = l;
-		l->innov_id = new_id;
 	}
 
 	return 0;
@@ -400,7 +369,6 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, d
 	
 	// Cycle through the net until nothing changes or num_activations is reached
 	int k, k_incr, k_max;
-	double diff;
 	if ( params->flags & CFL_ALLOW_RECURRENCE ) {
 		k_incr = 1;
 		k_max = params->num_activations;
@@ -409,24 +377,25 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, d
 		k_max = 1;
 	}
 	
+	int num_nodes = net->num_inputs+net->num_hidden+net->num_outputs;
+	double diff;
 	for ( k=0; k<k_max; k+=k_incr ) {
-		CPPN_Link **lpp = net->links_nodesort;
-		int links_processed = 0;
 		diff = 0.0;
 		
-		// foreach node i that has inputs
-		while ( links_processed < net->num_links ) {
-			double a = 0.0;
-			int n = 0;
+		// Go through each node
+		for ( i=net->num_inputs; i<num_nodes; i++ ) {
+			double a=0.0;
+			int n=0;
 			
-			// foreach node j that feeds into i
-			for ( i=(*lpp)->to; (*lpp)->to == i; lpp++ ) {
-				a += (*lpp)->weight * net->nodes[(*lpp)->from].activation;
-				links_processed++;
-				n++;
+			// Find each of its input links
+			for ( j=0; j<net->num_links; j++ ) {
+				if ( net->links[j].to == i ) {
+					a += net->links[j].weight * net->nodes[net->links[j].from].activation;
+					n++;
+				}
 			}
-			a = CPPN_func(net->nodes[i].func, a) / n;
-			diff += fabs(a-net->nodes[i].activation);
+			a = CPPN_func( net->nodes[i].func, a ) / n;
+			diff += fabs( a - net->nodes[i].activation );
 			net->nodes[i].activation = a;
 		}
 		if ( diff == 0.0 )
@@ -446,16 +415,16 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 	int i=0, j=0;
 	
 	while ( i<net1->num_links && j<net2->num_links ) {
-		if ( net1->links_innovsort[i]->innov_id == net2->links_innovsort[j]->innov_id ) {
+		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
 			matches++;
-			w1 = net1->links_innovsort[i]->is_disabled ? 0.0 : net1->links_innovsort[i]->weight;
-			w2 = net2->links_innovsort[j]->is_disabled ? 0.0 : net2->links_innovsort[j]->weight;
+			w1 = net1->links[i].is_disabled ? 0.0 : net1->links[i].weight;
+			w2 = net2->links[j].is_disabled ? 0.0 : net2->links[j].weight;
 			wdiff += fabs(w1-w2);
 			i++;
 			j++;
 		} else {
 			disjoint++;
-			if ( net1->links_innovsort[i]->innov_id > net2->links_innovsort[j]->innov_id )
+			if ( net1->links[i].innov_id > net2->links[j].innov_id )
 				j++;
 			else
 				i++;
@@ -463,7 +432,7 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 	}
 	
 	// Correct for pacing error that counts the first excess gene as disjoint...
-	if ( net1->links_innovsort[net1->num_links-1]->innov_id != net2->links_innovsort[net2->num_links-1]->innov_id )
+	if ( net1->links[net1->num_links-1].innov_id != net2->links[net2->num_links-1].innov_id )
 		disjoint--;
 	
 	// ... but capitalise on the same by using i|j instead of (i-1)|(j-1) here
@@ -479,19 +448,19 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 	int err=0, i=0, j=0;
 	
 	while ( i<net1->num_links && j<net2->num_links ) {
-		if ( net1->links_innovsort[i]->innov_id == net2->links_innovsort[j]->innov_id ) {
+		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
 			i++;
 			j++;
 		} else {
-			if ( net1->links_innovsort[i]->innov_id > net2->links_innovsort[j]->innov_id ) {
+			if ( net1->links[i].innov_id > net2->links[j].innov_id ) {
 				if (( err = CPPN_insert_link(
 					net1,
 					params,
-					net2->links_innovsort[j]->from,
-					net2->links_innovsort[j]->to,
-					net2->links_innovsort[j]->weight,
-					net2->links_innovsort[j]->is_disabled,
-					net2->links_innovsort[j]->innov_id
+					net2->links[j].from,
+					net2->links[j].to,
+					net2->links[j].weight,
+					net2->links[j].is_disabled,
+					net2->links[j].innov_id
 				)))
 					return err;
 				j++;
@@ -504,11 +473,11 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 		if (( err = CPPN_insert_link(
 			net1,
 			params,
-			net2->links_innovsort[j]->from,
-			net2->links_innovsort[j]->to,
-			net2->links_innovsort[j]->weight,
-			net2->links_innovsort[j]->is_disabled,
-			net2->links_innovsort[j]->innov_id
+			net2->links[j].from,
+			net2->links[j].to,
+			net2->links[j].weight,
+			net2->links[j].is_disabled,
+			net2->links[j].innov_id
 		)))
 			return err;
 	}

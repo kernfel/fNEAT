@@ -281,11 +281,11 @@ int mutate_population( Population *pop, struct NEAT_Params *params ) {
 				if ( ni[k].replaced_link == ni[num_ni].replaced_link ) {
 					// An equivalent innovation is found. Find the relevant links and collapse their innov_id's
 					for ( l=genotype->num_links-1; l>=0 && collapsed<2; l-- ) {
-						if ( genotype->links_innovsort[l]->innov_id == ni[num_ni].link_in ) {
-							CPPN_update_innov_id( genotype, genotype->links_innovsort+l, ni[k].link_in );
+						if ( genotype->links[l].innov_id == ni[num_ni].link_in ) {
+							CPPN_update_innov_id( genotype, genotype->links[l].innov_id, ni[k].link_in );
 							collapsed++;
-						} else if ( genotype->links_innovsort[l]->innov_id == ni[num_ni].link_out ) {
-							CPPN_update_innov_id( genotype, genotype->links_innovsort+l, ni[k].link_out );
+						} else if ( genotype->links[l].innov_id == ni[num_ni].link_out ) {
+							CPPN_update_innov_id( genotype, genotype->links[l].innov_id, ni[k].link_out );
 							collapsed++;
 						}
 					}
@@ -307,8 +307,8 @@ int mutate_population( Population *pop, struct NEAT_Params *params ) {
 				if ( li[k].type == li[num_li].type && li[k].from == li[num_li].from && li[k].to == li[num_li].to ) {
 					// An equivalent innovation is found. Find the relevant link and collapse its innov_id
 					for ( l=genotype->num_links-1; l>=0; l-- ) {
-						if ( genotype->links_innovsort[l]->innov_id == li[num_li].innov_id ) {
-							CPPN_update_innov_id( genotype, genotype->links_innovsort+l, li[k].innov_id );
+						if ( genotype->links[l].innov_id == li[num_li].innov_id ) {
+							CPPN_update_innov_id( genotype, genotype->links[l].innov_id, li[k].innov_id );
 							collapsed = 1;
 							break;
 						}

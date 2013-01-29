@@ -6,6 +6,8 @@
 #include "cppn.h"
 #include "neat.h"
 
+void dump_CPPN( CPPN *net );
+
 int main() {
 	struct NEAT_Params params;
 	Population pop;
@@ -32,19 +34,62 @@ int main() {
 
 	params.allowed_funcs = (enum CPPNFunc[1]){ CF_SIGMOID };
 	params.num_allowed_funcs = 1;
+	params.num_activations = 10;
 
 	params.innov_counter = 0;
 	params.species_counter = 0;
 
 
 	create_CPPN( &seed.genotype, 1, (enum CPPNFunc[1]){CF_SIGMOID}, (int[1]){1}, 0, &params );
-	
 	create_Population( &pop, &params, &seed );
-	
 	delete_CPPN( &seed.genotype );
+
+	int i,j,k;
+	double test[4][3] = {
+		{0.0, 0.0, 0.0},
+		{0.0, 1.0, 1.0},
+		{1.0, 0.0, 0.0},
+		{1.0, 1.0, 1.0}
+	};
+	double d,r=0.0;
+	int winner;
+	for ( i=0; i<20; i++ ) {
+		double best_score=0.0;
+		for ( j=0; j<pop.num_members; j++ ) {
+			putchar( '.' );
+			pop.members[j].score = 4.0;
+			for ( k=0; k<4; k++ ) {
+				read_CPPN( &pop.members[j].genotype, &params, test[k], &r );
+				d = r-test[k][2];
+				pop.members[j].score -= d*d;
+			}
+			if ( pop.members[j].score < 0 )
+				pop.members[j].score = 0.0;
+			if ( pop.members[j].score > best_score ) {
+				best_score = pop.members[j].score;
+				winner = j;
+			}
+		}
+		printf( "\n---------\nGeneration %d - Winner is #%d with a score of %.2f:\n----\n", i, winner, best_score );
+		dump_CPPN( &pop.members[winner].genotype );
+		epoch( &pop, &params );
+	}
 
 	delete_Population( &pop );
 	
 	return 0;
+}
+
+void dump_CPPN( CPPN *net ) {
+	int i;
+	for ( i=0; i<net->num_links; i++ ) {
+		printf(
+			"[%04d] %2d --> %2d  (%.2f)\n",
+			net->links[i].innov_id,
+			net->links[i].from,
+			net->links[i].to,
+			net->links[i].weight
+		);	
+	}
 }
 

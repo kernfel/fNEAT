@@ -4,7 +4,7 @@
 
 typedef struct Individual {
 	CPPN genotype;
-	int score;
+	double score;
 	unsigned int species_id;
 } Individual;
 

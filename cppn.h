@@ -19,9 +19,7 @@ typedef struct CPPN {
 	CPPN_Node *nodes;		// Includes input, output and hidden nodes, in this order
 	int num_inputs, num_outputs, num_hidden;
 	
-	CPPN_Link *links;		// Links, unsorted
-	CPPN_Link **links_innovsort;	// Pointers to the above, sorted by innovation number
-	CPPN_Link **links_nodesort;	// Pointers to the above, sorted by postsynaptic node id
+	CPPN_Link *links;		// Links, sorted by innovation id
 	int num_links;
 } CPPN;
 
@@ -88,7 +86,7 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 
 // Change the innov_id of a link and update its place in net->links_innovsort.
 // link must be a pointer to the relevant element of net->links_innovsort.
-int CPPN_update_innov_id( CPPN *net, CPPN_Link **link, unsigned int new_id );
+int CPPN_update_innov_id( CPPN *net, unsigned int old_id, unsigned int new_id );
 
 // Calculate activation value from function and input
 double CPPN_func( enum CPPNFunc fn, double x );
