@@ -271,7 +271,7 @@ int CPPN_insert_link( CPPN *net, struct NEAT_Params *params, int from, int to, d
 	CPPN_Link *l = &net->links[i];
 	if ( net->num_links > i ) {
 		// Move over, newbies!
-		memmove( l+1, l, i*sizeof *l );
+		memmove( l+1, l, (net->num_links-i)*sizeof *l );
 	}
 	l->innov_id = innov_id;
 	l->from = from;
@@ -439,7 +439,7 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 }
 
 int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
-	int err=0, i=0, j=0;
+	int err=0, i, j;
 	
 	int nodemap[net2->num_inputs+net2->num_outputs+net2->num_hidden];
 	for ( i=0; i<net2->num_inputs+net2->num_outputs+net2->num_hidden; i++ )
@@ -447,6 +447,8 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 	
 	CPPN_Link *extra_links[net2->num_links];
 	int num_extra=0;
+	i=0;
+	j=0;
 	while ( i<net1->num_links && j<net2->num_links ) {
 		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
 			// Add matching nodes to the node mapping, then move on
@@ -473,7 +475,7 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 		return 0;
 	
 	// Determine extra nodes - assume hidden for now
-	CPPN_Node *extra_nodes[num_extra*2];
+	CPPN_Node *extra_nodes[num_extra];
 	int num_extra_nodes=0;
 	int num_nodes_net1 = net1->num_inputs+net1->num_outputs+net1->num_hidden;
 	for ( i=0; i<num_extra; i++ ) {
@@ -491,7 +493,7 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 	
 	// Add extra nodes
 	if ( num_extra_nodes ) {
-		if (( err = Realloc( net1->nodes, num_nodes_net1+num_extra_nodes ) ))
+		if (( err = Realloc( net1->nodes, (num_nodes_net1+num_extra_nodes)*sizeof *net1->nodes ) ))
 			return err;
 		for ( i=0; i<num_extra_nodes; i++ ) {
 			memcpy( &net1->nodes[num_nodes_net1+i], extra_nodes[i], sizeof(CPPN_Node) );
