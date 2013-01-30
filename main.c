@@ -10,45 +10,52 @@
 
 void dump_CPPN( CPPN *net );
 
-struct NEAT_Params get_params() {
-	struct NEAT_Params params;
-	
-	params.flags = CFL_USE_BIAS;
-	params.num_dimensions = 1;
+void get_params( struct NEAT_Params *params ) {
+	params->flags = CFL_USE_BIAS;
 
-	params.population_size = 100;
-	params.extinction_threshold = 5;
-	params.survival_quota = 0.2;
+	params->num_dimensions = 1;
+	params->num_outputs = 0;
+	params->output_funcs = NULL;
+	params->initially_linked_outputs = NULL;
 
-	params.speciation_threshold = 6.0;
-	params.disjoint_factor = 2.0;
-	params.excess_factor = 2.0;
-	params.weight_factor = 1.0;
+	params->allowed_funcs = NULL;
+	params->num_allowed_funcs = 0;
+	params->num_activations = 10;
 
-	params.add_link_prob = 0.1;
-	params.add_node_prob = 0.1;
-	params.change_weight_prob = 0.9;
-	params.change_weight_rate = 1.0;
-	params.enable_link_prob = 0.1;
-	params.crossover_prob = 0.2;
+	params->population_size = 100;
+	params->extinction_threshold = 5;
+	params->survival_quota = 0.2;
 
-	params.allowed_funcs = (enum CPPNFunc[1]){ CF_SIGMOID };
-	params.num_allowed_funcs = 1;
-	params.num_activations = 10;
+	params->speciation_threshold = 6.0;
+	params->disjoint_factor = 2.0;
+	params->excess_factor = 2.0;
+	params->weight_factor = 1.0;
 
-	params.innov_counter = 0;
-	params.species_counter = 0;
-	
-	return params;
+	params->add_link_prob = 0.1;
+	params->add_node_prob = 0.1;
+	params->change_weight_prob = 0.9;
+	params->change_weight_rate = 1.0;
+	params->enable_link_prob = 0.1;
+	params->crossover_prob = 0.2;
+
+	params->innov_counter = 0;
+	params->species_counter = 0;
 }
 
 void xor() {
-	struct NEAT_Params params = get_params();
+	struct NEAT_Params params;
 	Population pop;
 	CPPN seed;
+	
+	get_params( &params );
+	params.allowed_funcs = (enum CPPNFunc[]){CF_SIGMOID};
+	params.num_allowed_funcs = 1;
+	params.output_funcs = (enum CPPNFunc[]){CF_SIGMOID};
+	params.num_outputs = 1;
+	params.initially_linked_outputs = (int[]){1};
 
 	srand(time(0));
-	create_CPPN( &seed, 1, (enum CPPNFunc[1]){CF_SIGMOID}, (int[1]){1}, 0, &params );
+	create_CPPN( &seed, &params );
 	create_Population( &pop, &params, &seed );
 	delete_CPPN( &seed );
 
@@ -111,17 +118,22 @@ void eval_xor( Individual *dude, struct NEAT_Params *params, int record, int ver
 }
 
 void functest() {
-	struct NEAT_Params params = get_params();
+	struct NEAT_Params params;
 	Population pop;
 	CPPN seed;
 	int err=0;
 	
+	get_params( &params );
 	params.population_size = 100;
 	params.extinction_threshold = 2;
 	params.allowed_funcs = (enum CPPNFunc[]){ CF_LINEAR };
+	params.num_allowed_funcs = 1;
+	params.output_funcs = (enum CPPNFunc[]){ CF_LINEAR };
+	params.num_outputs = 1;
+	params.initially_linked_outputs = (int[]){1};
 	params.crossover_prob = 0;
 	
-	if (( err = create_CPPN( &seed, 1, params.allowed_funcs, (int[]){1}, 1, &params ) )
+	if (( err = create_CPPN( &seed, &params ) )
 	 || ( err = create_Population( &pop, &params, &seed ) ))
 		exit(err);
 	delete_CPPN(&seed);
@@ -166,23 +178,89 @@ void functest() {
 	}
 }
 
+void print_link_info( CPPN_Link *l ) {
+	printf(
+		"[%04d] %2d --%c %2d  (%+.2f)",
+		l->innov_id,
+		l->from,
+		l->is_disabled ? 'x' : '>',
+		l->to,
+		l->weight
+	);
+}
+
 void dump_CPPN( CPPN *net ) {
 	int i;
 	for ( i=0; i<net->num_links; i++ ) {
-		printf(
-			"[%04d] %2d --%c %2d  (%+.2f)\n",
-			net->links[i].innov_id,
-			net->links[i].from,
-			net->links[i].is_disabled ? 'x' : '>',
-			net->links[i].to,
-			net->links[i].weight
-		);	
+		print_link_info( &net->links[i] );
+		putchar('\n');
 	}
+}
+
+void juxtapose_CPPN( CPPN *net1, CPPN *net2 ) {
+	int i=0,j=0;
+	while ( i<net1->num_links && j<net2->num_links ) {
+		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
+			print_link_info( &net1->links[i] );
+			putchar('\t');
+			print_link_info( &net2->links[j] );
+			putchar('\n');
+			i++;
+			j++;
+		} else if ( net1->links[i].innov_id > net2->links[j].innov_id ) {
+			printf( "\t\t\t\t" );
+			print_link_info( &net2->links[j] );
+			putchar('\n');
+			j++;
+		} else {
+			print_link_info( &net1->links[i] );
+			putchar('\n');
+			i++;
+		}
+	}
+	for ( ; i<net1->num_links; i++ ) {
+		print_link_info( &net1->links[i] );
+		putchar('\n');
+	}
+	for ( ; j<net2->num_links; j++ ) {
+		printf( "\t\t\t\t" );
+		print_link_info( &net2->links[j] );
+		putchar('\n');
+	}
+}
+
+void hillclimbing() {
+	struct NEAT_Params params;
+	CPPN net1, net2;
+	char c=' ';
+	
+	get_params( &params );
+	params.allowed_funcs = (enum CPPNFunc[]){CF_SIGMOID};
+	params.num_allowed_funcs = 1;
+	params.output_funcs = (enum CPPNFunc[]){CF_SIGMOID};
+	params.num_outputs = 1;
+	params.initially_linked_outputs = (int[]){1};
+	
+	create_CPPN( &net1, &params );
+	clone_CPPN( &net2, &net1 );
+	do {
+		if ( c == '1' ) {
+			crossover_CPPN( &net1, &net2, &params );
+		} else if ( c == '2' ) {
+			crossover_CPPN( &net2, &net1, &params );
+		} else {
+			mutate_CPPN( &net1, &params, 0, 0 );
+			mutate_CPPN( &net2, &params, 0, 0 );
+		}
+		juxtapose_CPPN( &net1, &net2 );
+		printf( "-- 1 to xover left with right, 2 to xover right with left, any key to mutate -- compatibility is %.2f\n", \
+			get_genetic_distance( &net1, &net2, &params ) );
+	} while (( c=getchar() ));
 }
 
 int main() {
 	srand(time(0));
-	functest();
+	hillclimbing();
 	return 0;
 }
 

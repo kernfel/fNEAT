@@ -7,6 +7,8 @@
 #define CFL_ALLOW_RECURRENCE	(1 << 2) // Allow recurrent connections, including loops with multiple nodes
 #define CFL_ALLOW_O_TO_O	(1 << 3)
 #define CFL_SQUARE_DIST		(1 << 4)
+#define CFL_MASK_INIT_UNLINKED	(1 << 5) // Fully link the network at init, but disable links not selected through params.initially_linked_outputs
+					// to facilitate their subsequent discovery.
 
 enum CPPNFunc {
 	CF_GAUSS,
@@ -23,6 +25,16 @@ struct NEAT_Params {
 
 // Parameters related to Hyper
 	int num_dimensions;		// Dimensionality of the substrate space
+	int num_outputs;		// Number of output values in the CPPN
+	enum CPPNFunc *output_funcs;	// Output activation functions
+	int *initially_linked_outputs;	// Output nodes to fully connect with inputs at initialisation
+
+// Parameters related to CPPN function
+	enum CPPNFunc *allowed_funcs;
+	int num_allowed_funcs;
+
+	int num_activations;		// Maximum number of iterations through the nodes to fully activate the net.
+					// Has no effect if ~CFL_ALLOW_RECURRENCE
 
 // Parameters related to the NEAT algorithm proper
 	int population_size;
@@ -40,13 +52,6 @@ struct NEAT_Params {
 		change_weight_rate,
 		enable_link_prob,	// Enable previously disabled links
 		crossover_prob;
-
-// Parameters related to CPPN function
-	enum CPPNFunc *allowed_funcs;
-	int num_allowed_funcs;
-
-	int num_activations;		// Maximum number of iterations through the nodes to fully activate the net.
-					// Has no effect if ~CFL_ALLOW_RECURRENCE
 
 // UID counters
 	unsigned int innov_counter;

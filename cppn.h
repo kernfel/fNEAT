@@ -40,13 +40,8 @@ typedef struct Link_Innovation {
 } Link_Innovation;
 
 
-// Constructors
-int create_CPPN(	CPPN *net,
-			int num_outputs,		// Number of output values
-			enum CPPNFunc *output_funcs,	// Output activation functions, eg sigmoid to normalise
-			int *outputs_linked,		// Boolean array defining those outputs that will be fully linked with the net's inputs
-			int create_disabled_links,	// Boolean. If true, will fully connect all outputs, but disable those not indicated by outputs_linked
-			struct NEAT_Params *parameters );
+// ** Constructors
+int create_CPPN( CPPN *net, struct NEAT_Params *parameters );
 
 // Copy constructor
 int clone_CPPN( CPPN *net, const CPPN *original );
@@ -55,7 +50,7 @@ int clone_CPPN( CPPN *net, const CPPN *original );
 // Allocation aside, no initialisation takes place.
 int allocate_CPPN( CPPN *net );
 
-// Destructor
+// ** Destructor
 void delete_CPPN( CPPN *trash );
 
 // ** Public methods

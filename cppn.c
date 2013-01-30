@@ -8,25 +8,20 @@
 #include "cppn.h"
 
 // Constructor
-int create_CPPN(	CPPN *net,
-			int num_outputs,
-			enum CPPNFunc *output_funcs,
-			int *outputs_linked,
-			int create_disabled_links,
-			struct NEAT_Params *params )
+int create_CPPN( CPPN *net, struct NEAT_Params *params )
 {
 	int i, j, err=0;
 	
 	// Determine number of nodes and links
-	net->num_outputs = num_outputs;
+	net->num_outputs = params->num_outputs;
 	net->num_inputs = 2*params->num_dimensions + ((params->flags & CFL_USE_DIST)? 1:0) + ((params->flags & CFL_USE_BIAS)? 1:0);
 	net->num_hidden = 0;
-	if ( create_disabled_links ) {
+	if ( params->flags & CFL_MASK_INIT_UNLINKED ) {
 		net->num_links = net->num_inputs * net->num_outputs;
 	} else {
 		net->num_links = 0;
-		for ( i=0; i<num_outputs; i++ )
-			if ( outputs_linked[i] )
+		for ( i=0; i<net->num_outputs; i++ )
+			if ( params->initially_linked_outputs[i] )
 				net->num_links += net->num_inputs;
 	}
 	
@@ -37,19 +32,19 @@ int create_CPPN(	CPPN *net,
 	// Create input and output nodes
 	for ( i=0; i<net->num_inputs; i++ )
 		net->nodes[i].func = CF_LINEAR;
-	for ( i=0; i<num_outputs; i++ )
-		net->nodes[i+net->num_inputs].func = output_funcs[i];
+	for ( i=0; i<net->num_outputs; i++ )
+		net->nodes[i+net->num_inputs].func = params->output_funcs[i];
 
 	// Create links from input to output nodes, where applicable
-	for ( i=0; i<num_outputs; i++ ) {
-		if ( create_disabled_links && ! outputs_linked[i] )
+	for ( i=0; i<net->num_outputs; i++ ) {
+		if ( ! (params->flags & CFL_MASK_INIT_UNLINKED) && ! params->initially_linked_outputs[i] )
 			continue;
 		for ( j=0; j<net->num_inputs; j++ ) {
 			net->links[j].innov_id = ++params->innov_counter;
 			net->links[j].from = j;
 			net->links[j].to = i+net->num_inputs;
 			net->links[j].weight = 0;
-			net->links[j].is_disabled = ! outputs_linked[i];
+			net->links[j].is_disabled = ! params->initially_linked_outputs[i];
 		}
 	}
 
