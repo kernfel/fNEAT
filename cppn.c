@@ -421,20 +421,15 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 			wdiff += fabs(w1-w2);
 			i++;
 			j++;
+		} else if ( net1->links[i].innov_id > net2->links[j].innov_id ) {
+			disjoint++;
+			j++;
 		} else {
 			disjoint++;
-			if ( net1->links[i].innov_id > net2->links[j].innov_id )
-				j++;
-			else
-				i++;
+			i++;
 		}
 	}
-	
-	// Correct for pacing error that counts the first excess gene as disjoint...
-	if ( net1->links[net1->num_links-1].innov_id != net2->links[net2->num_links-1].innov_id )
-		disjoint--;
-	
-	// ... but capitalise on the same by using i|j instead of (i-1)|(j-1) here
+
 	if ( i == net1->num_links )
 		excess = net2->num_links - j;
 	else
