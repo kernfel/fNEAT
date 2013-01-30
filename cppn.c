@@ -451,38 +451,75 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 	int err=0, i=0, j=0;
 	
+	int nodemap[net2->num_inputs+net2->num_outputs+net2->num_hidden];
+	for ( i=0; i<net2->num_inputs+net2->num_outputs+net2->num_hidden; i++ )
+		nodemap[i] = -1;
+	
+	CPPN_Link *extra_links[net2->num_links];
+	int num_extra=0;
 	while ( i<net1->num_links && j<net2->num_links ) {
 		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
+			// Add matching nodes to the node mapping, then move on
+			nodemap[net2->links[j].from] = net1->links[i].from;
+			nodemap[net2->links[j].to] = net1->links[i].to;
 			i++;
 			j++;
+		} else if ( net1->links[i].innov_id > net2->links[j].innov_id ) {
+			// Disjoint in net2, track
+			extra_links[num_extra++] = &net2->links[j];
+			j++;
 		} else {
-			if ( net1->links[i].innov_id > net2->links[j].innov_id ) {
-				if (( err = CPPN_insert_link(
-					net1,
-					params,
-					net2->links[j].from,
-					net2->links[j].to,
-					net2->links[j].weight,
-					net2->links[j].is_disabled,
-					net2->links[j].innov_id
-				)))
-					return err;
-				j++;
-			} else {
-				i++;
-			}
+			// Disjoint in net1, ignore
+			i++;
 		}
 	}
 	for ( ; j<net2->num_links; j++ ) {
+		// Excess in net2
+		extra_links[num_extra++] = &net2->links[j];
+	}
+	
+	// Nothing to add, bail
+	if ( ! num_extra )
+		return 0;
+	
+	// Determine extra nodes - assume hidden for now
+	CPPN_Node *extra_nodes[num_extra*2];
+	int num_extra_nodes=0;
+	int num_nodes_net1 = net1->num_inputs+net1->num_outputs+net1->num_hidden;
+	for ( i=0; i<num_extra; i++ ) {
+		if ( nodemap[extra_links[i]->from] == -1 ) {
+			extra_nodes[num_extra_nodes] = &net2->nodes[extra_links[i]->from];
+			nodemap[extra_links[i]->from] = num_nodes_net1 + num_extra_nodes;
+			num_extra_nodes++;
+		}
+		if ( nodemap[extra_links[i]->to] == -1 ) {
+			extra_nodes[num_extra_nodes] = &net2->nodes[extra_links[i]->to];
+			nodemap[extra_links[i]->to] = num_nodes_net1 + num_extra_nodes;
+			num_extra_nodes++;
+		}
+	}
+	
+	// Add extra nodes
+	if ( num_extra_nodes ) {
+		if (( err = Realloc( net1->nodes, num_nodes_net1+num_extra_nodes ) ))
+			return err;
+		for ( i=0; i<num_extra_nodes; i++ ) {
+			memcpy( &net1->nodes[num_nodes_net1+i], extra_nodes[i], sizeof(CPPN_Node) );
+		}
+		net1->num_hidden += num_extra_nodes;
+	}
+	
+	// Add extra links
+	for ( i=0; i<num_extra; i++ ) {
 		if (( err = CPPN_insert_link(
 			net1,
 			params,
-			net2->links[j].from,
-			net2->links[j].to,
-			net2->links[j].weight,
-			net2->links[j].is_disabled,
-			net2->links[j].innov_id
-		)))
+			nodemap[extra_links[i]->from],
+			nodemap[extra_links[i]->to],
+			extra_links[i]->weight,
+			extra_links[i]->is_disabled,
+			extra_links[i]->innov_id
+		) ))
 			return err;
 	}
 	
