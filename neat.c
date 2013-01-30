@@ -69,20 +69,26 @@ void delete_Population( Population *pop ) {
 
 
 int epoch( Population *pop, struct NEAT_Params *params ) {
-	int err=0;
+	int i, err=0;
 
 	// Initialise next generation whilst saving a set of species representatives
 	Individual reps[pop->num_species];
+	int num_reps = pop->num_species;
 	if (( err = reproduce_population( pop, params, reps ) ))
-		return err;
+		goto cleanup;
 
 	// Mutate the entire new generation
 	if (( err = mutate_population( pop, params ) ))
-		return err;
+		goto cleanup;
 
 	// Divide the offspring into species
 	if (( err = speciate_population( pop, params, reps ) ))
-		return err;
+		goto cleanup;
+
+cleanup:
+	for ( i=0; i<num_reps; i++ )
+		if ( reps[i].species_id )
+			delete_CPPN( &reps[i].genotype );
 
 	return err;
 }
@@ -169,9 +175,12 @@ cleanup:
 	return err;
 
 failure:
-	for ( i=0; i<species_processed; i++ )
-		if ( reps[i].species_id )
+	for ( i=0; i<species_processed; i++ ) {
+		if ( reps[i].species_id ) {
 			delete_CPPN( &reps[i].genotype );
+			reps[i].species_id = 0;
+		}
+	}
 	goto cleanup;
 }
 
@@ -284,13 +293,16 @@ int mutate_population( Population *pop, struct NEAT_Params *params ) {
 			for ( k=0; k<num_ni; k++ ) {
 				if ( ni[k].replaced_link == ni[num_ni].replaced_link ) {
 					// An equivalent innovation is found. Find the relevant links and collapse their innov_id's
+					// Note that updating moves the links within their containing array, hence the l++ as a security blanket
 					for ( l=genotype->num_links-1; l>=0 && collapsed<2; l-- ) {
-						if ( genotype->links[l].innov_id == ni[num_ni].link_in ) {
-							CPPN_update_innov_id( genotype, genotype->links[l].innov_id, ni[k].link_in );
-							collapsed++;
-						} else if ( genotype->links[l].innov_id == ni[num_ni].link_out ) {
+						if ( genotype->links[l].innov_id == ni[num_ni].link_out ) {
 							CPPN_update_innov_id( genotype, genotype->links[l].innov_id, ni[k].link_out );
 							collapsed++;
+							l++;
+						} else if ( genotype->links[l].innov_id == ni[num_ni].link_in ) {
+							CPPN_update_innov_id( genotype, genotype->links[l].innov_id, ni[k].link_in );
+							collapsed++;
+							l++;
 						}
 					}
 					ASSERT( collapsed==2 );
@@ -332,14 +344,15 @@ int mutate_population( Population *pop, struct NEAT_Params *params ) {
 }
 
 int speciate_population( Population *pop, struct NEAT_Params *params, const Individual *reps ) {
-	int i, j, num_new_species=0;
+	int i, j, num_new_species=0, num_extinct=0;
 	
 	for ( i=0; i<pop->num_species; i++ ) {
 		pop->species_size[i] = 0;
+		if ( ! reps[i].species_id )
+			num_extinct++;
 	}
 	
 	int new_species_size[pop->num_members];
-	unsigned int new_species_ids[pop->num_members];
 	Individual *new_reps[pop->num_members];
 	for ( i=0; i<pop->num_members; i++ ) {
 		int assigned=0;
@@ -388,37 +401,44 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 		
 		// ... or create a new species, proudly representing!
 		if ( ! assigned ) {
-			pop->members[i].species_id = \
-			new_species_ids[num_new_species] = ++params->species_counter;
+			pop->members[i].species_id = ++params->species_counter;
 			new_reps[num_new_species] = pop->members + i;
 			new_species_size[num_new_species++] = 1;
 		}
 	}
 	
+	// No structural changes to species list, bail
+	if ( ! num_new_species && ! num_extinct )
+		return 0;
+	
+	// Compose a new list with all the (living) species and replace the old one with that
 	int err=0;
-	if (( err = Realloc( pop->species_ids, pop->num_species+num_new_species*sizeof *pop->species_ids ) ))
+	unsigned int *all_ids;
+	int *all_size, num_all = pop->num_species + num_new_species - num_extinct;
+	if (( err = Malloc( all_ids, num_all*sizeof *all_ids ) )
+	 || ( err = Malloc( all_size, num_all*sizeof *all_size ) ))
 		return err;
-	if (( err = Realloc( pop->species_size, pop->num_species+num_new_species*sizeof *pop->species_size ) )) {
-		Realloc( pop->species_ids, pop->num_species*sizeof *pop->species_ids );
-		return err;
+	
+	j=0;
+	for ( i=0; i<pop->num_species; i++ ) {
+		if ( reps[i].species_id ) {
+			all_ids[j] = reps[i].species_id;
+			all_size[j] = pop->species_size[i];
+			j++;
+		}
 	}
-	memcpy( pop->species_ids+pop->num_species, new_species_ids, num_new_species*sizeof *new_species_ids );
-	memcpy( pop->species_size+pop->num_species, new_species_size, num_new_species*sizeof *new_species_size );
-	pop->num_species += num_new_species;
+	for ( i=0; i<num_new_species; i++ ) {
+		all_ids[j] = new_reps[i]->species_id;
+		all_size[j] = new_species_size[i];
+		j++;
+	}
+	
+	free( pop->species_ids );
+	free( pop->species_size );
+	pop->species_ids = all_ids;
+	pop->species_size = all_size;
+	pop->num_species = num_all;
 	
 	return err;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 

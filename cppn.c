@@ -161,7 +161,7 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 			source_id;
 		
 		for ( i=0; i<num_possible_sources; i++ )
-			possible_sources[num_possible_sources] = 1;
+			possible_sources[i] = 1;
 		
 		// Exclude existing links
 		for ( i=0; i<net->num_links; i++ ) {
@@ -185,7 +185,7 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 		
 		// Determine source node and add link
 		if ( num_possible_sources ) {
-			j = rand() % num_possible_sources;
+			j = rand() % num_possible_sources + 1;
 			// Find the j:th blip in a sparse array
 			for ( source_id=0; j; source_id++ ) {
 				j -= possible_sources[source_id];
@@ -238,6 +238,9 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 
 int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *params, int target_id, int *possible_sources ) {
 	int i, n=0;
+
+	n += possible_sources[target_id];
+	possible_sources[target_id] = 0;
 
 	// Don't bother going any further if we're at a non-projecting output node
 	if ( !(params->flags & CFL_ALLOW_O_TO_O) && target_id < net->num_inputs+net->num_outputs )
