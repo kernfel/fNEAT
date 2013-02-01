@@ -433,7 +433,10 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 	else
 		excess = net1->num_links - i;
 	
-	return params->disjoint_factor*disjoint/n + params->excess_factor*excess/n + params->weight_factor*wdiff/n;
+	if ( params->flags & CFL_NO_DISTCALC_NORM )
+		return params->disjoint_factor*disjoint + params->excess_factor*excess + params->weight_factor*wdiff/n;
+	else
+		return params->disjoint_factor*disjoint/n + params->excess_factor*excess/n + params->weight_factor*wdiff/n;
 }
 
 int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {

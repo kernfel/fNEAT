@@ -6,9 +6,10 @@
 #define CFL_USE_BIAS		(1 << 1) // Use a constant bias (1) input
 #define CFL_ALLOW_RECURRENCE	(1 << 2) // Allow recurrent connections, including loops with multiple nodes
 #define CFL_ALLOW_O_TO_O	(1 << 3)
-#define CFL_SQUARE_DIST		(1 << 4)
+#define CFL_SQUARE_DIST		(1 << 4) // Feed the squared distance, rather than the linear one, into the distance input
 #define CFL_MASK_INIT_UNLINKED	(1 << 5) // Fully link the network at init, but disable links not selected through params.initially_linked_outputs
 					// to facilitate their subsequent discovery.
+#define CFL_NO_DISTCALC_NORM	(1 << 6) // Assume "small" network, calculate genetic distance without normalising by link count
 
 enum CPPNFunc {
 	CF_GAUSS,

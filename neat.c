@@ -114,8 +114,8 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 	int species_processed=0;
 	for ( i=0; i<pop->num_species; i++ ) {
 		// Let subthreshold species go extinct
-		if ( !num_offspring[i] || num_offspring[i] < params->extinction_threshold ) {
-			num_parents[i] = num_offspring[i] = 0;
+		if ( !num_offspring[i] ) {
+			num_parents[i] = 0;
 			reps[i].species_id = 0;
 		} else {
 			// Find out how many old individuals get to reproduce
@@ -137,7 +137,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 		}
 		species_processed++;
 	}
-	
+
 	// Error protection
 	free_slots[k] = 0;
 
@@ -233,6 +233,23 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 	// Throw the winners some scraps from rounding error
 	for ( i=0; i<unassigned_offspring; i++ ) {
 		num_offspring[species_scoresort[i]]++;
+	}
+	unassigned_offspring = 0;
+
+	// Let subthreshold species go extinct
+	for ( i=0; i<pop->num_species; i++ ) {
+		if ( num_offspring[i] < params->extinction_threshold ) {
+			unassigned_offspring += num_offspring[i];
+			num_offspring[i] = 0;
+		}
+	}
+	
+	// ... and redistribute these scraps, too
+	for ( i=0; unassigned_offspring>0; i++ ) {
+		if ( num_offspring[species_scoresort[i%pop->num_species]] ) {
+			num_offspring[species_scoresort[i%pop->num_species]]++;
+			unassigned_offspring--;
+		}
 	}
 }
 
@@ -350,8 +367,6 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 	
 	for ( i=0; i<pop->num_species; i++ ) {
 		pop->species_size[i] = 0;
-		if ( ! reps[i].species_id )
-			num_extinct++;
 	}
 	
 	int new_species_size[pop->num_members];
@@ -409,6 +424,11 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 		}
 	}
 	
+	for ( i=0; i<pop->num_species; i++ ) {
+		if ( ! pop->species_size[i] )
+			num_extinct++;
+	}
+	
 	// No structural changes to species list, bail
 	if ( ! num_new_species && ! num_extinct )
 		return 0;
@@ -423,7 +443,7 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 	
 	j=0;
 	for ( i=0; i<pop->num_species; i++ ) {
-		if ( reps[i].species_id ) {
+		if ( pop->species_size[i] ) {
 			all_ids[j] = reps[i].species_id;
 			all_size[j] = pop->species_size[i];
 			j++;

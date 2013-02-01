@@ -12,7 +12,7 @@
 void dump_CPPN( CPPN *net );
 
 void get_params( struct NEAT_Params *params ) {
-	params->flags = CFL_USE_BIAS;
+	params->flags = CFL_USE_BIAS | CFL_NO_DISTCALC_NORM;
 
 	params->num_dimensions = 1;
 	params->num_outputs = 0;
