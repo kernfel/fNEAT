@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <math.h>
 
 #include "params.h"
 
@@ -26,14 +27,14 @@ void get_params( struct NEAT_Params *params ) {
 	params->extinction_threshold = 5;
 	params->survival_quota = 0.2;
 
-	params->speciation_threshold = 6.0;
-	params->disjoint_factor = 2.0;
-	params->excess_factor = 2.0;
-	params->weight_factor = 1.0;
+	params->speciation_threshold = 3.0;
+	params->disjoint_factor = 1.0;
+	params->excess_factor = 1.0;
+	params->weight_factor = 0.4;
 
-	params->add_link_prob = 0.1;
-	params->add_node_prob = 0.1;
-	params->change_weight_prob = 0.9;
+	params->add_link_prob = 0.05;
+	params->add_node_prob = 0.03;
+	params->change_weight_prob = 0.8;
 	params->change_weight_rate = 1.0;
 	params->enable_link_prob = 0.1;
 	params->crossover_prob = 0.2;
@@ -106,15 +107,18 @@ void eval_xor( Individual *dude, struct NEAT_Params *params, int record, int ver
 	};
 	double d, result[4]={0.0};
 	int j;
-	dude->score = 4.0;
+	if ( record )
+		dude->score = 4.0;
 	for ( j=0; j<4; j++ ) {
 		read_CPPN( &dude->genotype, params, test[j], &result[j] );
 		d = result[j]-test[j][2];
 		if ( record )
-			dude->score -= d*d;
+			dude->score -= fabs(d);
 		if ( verbose )
 			printf( "%1.0f^%1.0f->%.2f, (%+.2f off)\n", test[j][0], test[j][1], result[j], d );
 	}
+	if ( record )
+		dude->score *= dude->score;
 }
 
 void functest() {
@@ -124,14 +128,11 @@ void functest() {
 	int err=0;
 	
 	get_params( &params );
-	params.population_size = 100;
-	params.extinction_threshold = 2;
-	params.allowed_funcs = (enum CPPNFunc[]){ CF_LINEAR };
+	params.allowed_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
 	params.num_allowed_funcs = 1;
-	params.output_funcs = (enum CPPNFunc[]){ CF_LINEAR };
+	params.output_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
 	params.num_outputs = 1;
 	params.initially_linked_outputs = (int[]){1};
-	params.crossover_prob = 0;
 	
 	if (( err = create_CPPN( &seed, &params ) )
 	 || ( err = create_Population( &pop, &params, &seed ) ))
@@ -168,7 +169,7 @@ void functest() {
 		for ( j=0; j<pop.num_species; j++ )
 			if ( pop.members[winner].species_id == pop.species_ids[j] )
 				break;
-		printf( "The winner with score %.2f belongs to species #%d, here he is:\n", pop.members[winner].score, pop.species_ids[j] );
+		printf( "The winner with score %.2f belongs to species #%d, here it is:\n", pop.members[winner].score, pop.species_ids[j] );
 		dump_CPPN( &pop.members[winner].genotype );
 		eval_xor( &pop.members[winner], &params, 0, 1 );
 		
@@ -260,7 +261,7 @@ void hillclimbing() {
 
 int main() {
 	srand(time(0));
-	hillclimbing();
+	functest();
 	return 0;
 }
 

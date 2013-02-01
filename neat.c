@@ -99,6 +99,8 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 
 	// Determine the number of offspring each species is allowed
 	int num_offspring[pop->num_species];
+	for ( i=0; i<pop->num_species; i++ )
+		num_offspring[i]=0; // Appease valgrind at low cost
 	get_population_fertility( pop, params, num_offspring );
 
 	// Get ranking
@@ -117,7 +119,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 			reps[i].species_id = 0;
 		} else {
 			// Find out how many old individuals get to reproduce
-			num_parents[i] = (int)(params->survival_quota * pop->species_size[i]);
+			num_parents[i] = 1 + (int)(params->survival_quota * pop->species_size[i]);
 			if ( num_parents[i] > num_offspring[i] )
 				num_parents[i] = num_offspring[i];
 			
@@ -157,7 +159,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 			}
 
 			// Perform crossover
-			if ( params->crossover_prob * RAND_MAX > rand() ) {
+			if ( params->crossover_prob * RAND_MAX > rand() && num_parents[i] > 1 ) {
 				// Find a non-self partner in the same species
 				int l=rand()%(num_parents[i]-1);
 				if ( l >= j )
@@ -203,7 +205,7 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 	}
 
 	double average_scores[pop->num_species];
-	double sum_average_scores;
+	double sum_average_scores = 0.0;
 	int species_scoresort[pop->num_species];
 	for ( i=0; i<pop->num_species; i++ ) {
 

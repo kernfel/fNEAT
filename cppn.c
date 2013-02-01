@@ -234,17 +234,17 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 int CPPN_exclude_recurrent_links( const CPPN *net, const struct NEAT_Params *params, int target_id, int *possible_sources ) {
 	int i, n=0;
 
+	// Exclude self
 	n += possible_sources[target_id];
 	possible_sources[target_id] = 0;
 
-	// Don't bother going any further if we're at a non-projecting output node
-	if ( !(params->flags & CFL_ALLOW_O_TO_O) && target_id < net->num_inputs+net->num_outputs )
-		return n;
-
+	// Find all links that node #target_id projects to, exclude them
 	for ( i=0; i<net->num_links; i++ ) {
 		if ( net->links[i].from == target_id ) {
 			n += possible_sources[net->links[i].to];
 			possible_sources[net->links[i].to] = 0;
+			
+			// Recurse.
 			n += CPPN_exclude_recurrent_links( net, params, net->links[i].to, possible_sources );
 		}
 	}
@@ -383,16 +383,14 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, d
 		// Go through each node
 		for ( i=net->num_inputs; i<num_nodes; i++ ) {
 			double a=0.0;
-			int n=0;
 			
 			// Find each of its input links
 			for ( j=0; j<net->num_links; j++ ) {
 				if ( net->links[j].to == i ) {
 					a += net->links[j].weight * net->nodes[net->links[j].from].activation;
-					n++;
 				}
 			}
-			a = CPPN_func( net->nodes[i].func, a ) / n;
+			a = CPPN_func( net->nodes[i].func, a );
 			diff += fabs( a - net->nodes[i].activation );
 			net->nodes[i].activation = a;
 		}
@@ -441,6 +439,8 @@ double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NE
 int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 	int err=0, i, j;
 	
+	int num_nodes_net1 = net1->num_inputs+net1->num_outputs+net1->num_hidden;
+	
 	int nodemap[net2->num_inputs+net2->num_outputs+net2->num_hidden];
 	for ( i=0; i<net2->num_inputs+net2->num_outputs+net2->num_hidden; i++ )
 		nodemap[i] = -1;
@@ -477,7 +477,6 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 	// Determine extra nodes - assume hidden for now
 	CPPN_Node *extra_nodes[num_extra];
 	int num_extra_nodes=0;
-	int num_nodes_net1 = net1->num_inputs+net1->num_outputs+net1->num_hidden;
 	for ( i=0; i<num_extra; i++ ) {
 		if ( nodemap[extra_links[i]->from] == -1 ) {
 			extra_nodes[num_extra_nodes] = &net2->nodes[extra_links[i]->from];
@@ -499,10 +498,41 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 			memcpy( &net1->nodes[num_nodes_net1+i], extra_nodes[i], sizeof(CPPN_Node) );
 		}
 		net1->num_hidden += num_extra_nodes;
+		num_nodes_net1 += num_extra_nodes;
 	}
-	
-	// Add extra links
+
+	// Eliminate duplicates and recursions, then add remaining links
+	int *downstream_tpl, *downstream;
+	if ( ! (params->flags & CFL_ALLOW_RECURRENCE) ) {
+		if (( err = Malloc( downstream_tpl, num_nodes_net1*2*sizeof(int) ) ))
+			return err;
+		for ( i=0; i<num_nodes_net1; i++ )
+			downstream_tpl[i] = 1;
+		downstream = &downstream_tpl[num_nodes_net1];
+	}
 	for ( i=0; i<num_extra; i++ ) {
+		
+		// Exclude duplicates
+		for ( j=0; j<net1->num_links; j++ ) {
+			if ( net1->links[j].from == nodemap[extra_links[i]->from] \
+			 && net1->links[j].to == nodemap[extra_links[i]->to] ) {
+				extra_links[i] = 0;
+				break;
+			}
+		}
+		
+		// Exclude recursions
+		if ( ! (params->flags & CFL_ALLOW_RECURRENCE) && extra_links[i] ) {
+			memcpy( downstream, downstream_tpl, num_nodes_net1*sizeof *downstream );
+			CPPN_exclude_recurrent_links( net1, params, nodemap[extra_links[i]->to], downstream );
+			if ( ! downstream[nodemap[extra_links[i]->from]] )
+				extra_links[i] = 0;
+		}
+
+		if ( ! extra_links[i] )
+			continue;
+
+		// Add extra links
 		if (( err = CPPN_insert_link(
 			net1,
 			params,
@@ -512,8 +542,12 @@ int crossover_CPPN( CPPN *net1, const CPPN *net2, struct NEAT_Params *params ) {
 			extra_links[i]->is_disabled,
 			extra_links[i]->innov_id
 		) ))
-			return err;
+			goto cleanup;
 	}
+
+cleanup:
+	if ( ! (params->flags & CFL_ALLOW_RECURRENCE) )
+		free( downstream_tpl );
 	
 	return err;
 }
