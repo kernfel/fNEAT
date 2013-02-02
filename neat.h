@@ -19,7 +19,7 @@ typedef struct Population {
 
 
 // ** Constructors
-// Spawn an population from scratch, using prototype as a seed
+// Spawn an population from scratch, using prototype as a seed. No mutation or randomisation is performed.
 int create_Population( Population *pop, struct NEAT_Params *parameters, const CPPN *prototype );
 
 // Allocate memory for an entire population, guided by the num_* values
@@ -33,14 +33,17 @@ void delete_Population( Population *pop );
 // Set up a new generation as per the NEAT algorithm and the gathered evaluation data
 int epoch( Population *pop, struct NEAT_Params *params );
 
+// Randomise the connection weights of each member of the population
+void randomise_population( Population *pop, struct NEAT_Params *params );
+
 // ** Private methods
 
 // Initialise the next generation based on data from the current generation's evaluation
 // representatives is populated with copies of individuals from the current generation to allow for speciation
-int reproduce_population( Population *pop, struct NEAT_Params *params, Individual *representatives );
+int reproduce_population( Population *pop, struct NEAT_Params *params, Individual *representatives, Individual **champions );
 
 // Apply mutation (without crossover) to each member of the population
-int mutate_population( Population *pop, struct NEAT_Params *params );
+int mutate_population( Population *pop, struct NEAT_Params *params, Individual **champions );
 
 // Divide the population into species
 // Individuals are preferentially kept within the species indicated by their species_id, if still compatible.

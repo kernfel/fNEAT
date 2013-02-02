@@ -7,6 +7,10 @@
 #include "cppn.h"
 #include "neat.h"
 
+#ifdef VERBOSE
+	#include <stdio.h>
+#endif
+
 
 int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *prototype ) {
 	int err=0;
@@ -33,9 +37,6 @@ int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *
 		}
 		pop->members[i].species_id = pop->species_ids[0];
 	}
-	if (( err = mutate_population( pop, params ) )
-	 || ( err = speciate_population( pop, params, &adam ) ))
-		delete_Population( pop );
 	
 	return err;
 }
@@ -67,18 +68,25 @@ void delete_Population( Population *pop ) {
 	pop->species_size = 0;
 }
 
+void randomise_population( Population *pop, struct NEAT_Params *params ) {
+	int i;
+	for ( i=0; i<pop->num_members; i++ )
+		randomise_CPPN_weights( &pop->members[i].genotype, params );
+}
+
 
 int epoch( Population *pop, struct NEAT_Params *params ) {
 	int i, err=0;
 
 	// Initialise next generation whilst saving a set of species representatives
 	Individual reps[pop->num_species];
+	Individual *champions[pop->num_species];
 	int num_reps = pop->num_species;
-	if (( err = reproduce_population( pop, params, reps ) ))
+	if (( err = reproduce_population( pop, params, reps, champions ) ))
 		goto cleanup;
 
 	// Mutate the entire new generation
-	if (( err = mutate_population( pop, params ) ))
+	if (( err = mutate_population( pop, params, champions ) ))
 		goto cleanup;
 
 	// Divide the offspring into species
@@ -94,7 +102,7 @@ cleanup:
 }
 
 // Reproduction
-int reproduce_population( Population *pop, struct NEAT_Params *params, Individual *reps ) {
+int reproduce_population( Population *pop, struct NEAT_Params *params, Individual *reps, Individual **champions ) {
 	int i, j, k=0, err=0;
 
 	// Determine the number of offspring each species is allowed
@@ -104,7 +112,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 	get_population_fertility( pop, params, num_offspring );
 
 	// Get ranking
-	Individual ***mem_by_spec = get_population_ranking( pop, &err );
+	Individual ***ranked = get_population_ranking( pop, &err );
 	if ( err )
 		return err;
 
@@ -117,6 +125,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 		if ( !num_offspring[i] ) {
 			num_parents[i] = 0;
 			reps[i].species_id = 0;
+			champions[i] = 0;
 		} else {
 			// Find out how many old individuals get to reproduce
 			num_parents[i] = 1 + (int)(params->survival_quota * pop->species_size[i]);
@@ -124,14 +133,20 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 				num_parents[i] = num_offspring[i];
 			
 			// Save a random parent as representative for speciation
-			if (( err = clone_CPPN( &reps[i].genotype, &mem_by_spec[i][rand()%num_parents[i]]->genotype ) ))
+			if (( err = clone_CPPN( &reps[i].genotype, &ranked[i][rand()%num_parents[i]]->genotype ) ))
 				goto failure;
 			reps[i].species_id = pop->species_ids[i];
+			
+			// Make sure the champion survives unchanged
+			if ( pop->species_size[i] >= params->champion_threshold )
+				champions[i] = ranked[i][0];
+			else
+				champions[i] = 0;
 		}
 
 		// Eliminate the infertile individuals and post job openings in free_slots
 		for ( j=num_parents[i]; j<pop->species_size[i]; j++ ) {
-			free_slots[k] = mem_by_spec[i][j];
+			free_slots[k] = ranked[i][j];
 			delete_CPPN( &free_slots[k]->genotype );
 			k++;
 		}
@@ -147,7 +162,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 	for ( i=0; i<pop->num_species; i++ ) {
 		for ( j=0; j<num_offspring[i]; j++ ) {
 			// Retrieve a fertile individual
-			g = &mem_by_spec[i][j%num_parents[i]]->genotype;
+			g = &ranked[i][j%num_parents[i]]->genotype;
 			
 			// If necessary, spread its genes...
 			if ( j >= num_parents[i] ) {
@@ -165,14 +180,14 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 				if ( l >= j )
 					l++;
 				// Do the deed
-				if (( err = crossover_CPPN( g, &mem_by_spec[i][l]->genotype, params ) ))
+				if (( err = crossover_CPPN( g, &ranked[i][l]->genotype, params ) ))
 					goto failure;
 			}
 		}
 	}
 
 cleanup:
-	free( mem_by_spec );
+	free( ranked );
 
 	return err;
 
@@ -199,6 +214,9 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 		for ( j=0; j<pop->num_species; j++ ) {
 			if ( pop->species_ids[j] == pop->members[i].species_id ) {
 				species_scores[j] += pop->members[i].score;
+				#ifdef VERBOSE
+					printf( "Member %3d in species #%2d, score: %2.2f\n", i, pop->species_ids[j], pop->members[i].score );
+				#endif
 				break;
 			}
 		}
@@ -251,18 +269,31 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 			unassigned_offspring--;
 		}
 	}
+	
+	#ifdef VERBOSE
+		for ( i=0; i<pop->num_species; i++ ) {
+			printf( "Species #%2d (idx %2d) - %3d members, %2d offspring - total score: %6.2f | avg score: %2.2f\n",
+				pop->species_ids[i],
+				i,
+				pop->species_size[i],
+				num_offspring[i],
+				species_scores[i],
+				average_scores[i]
+			);
+		}
+	#endif
 }
 
 Individual ***get_population_ranking( Population *pop, int *err ) {
-	Individual ***mem_by_spec=0;
+	Individual ***ranked=0;
 
-	if (( *err = Malloc( mem_by_spec, pop->num_species*sizeof *mem_by_spec + pop->num_members*sizeof **mem_by_spec ) ))
+	if (( *err = Malloc( ranked, pop->num_species*sizeof *ranked + pop->num_members*sizeof **ranked ) ))
 		return 0;
 
 	int i, j, all_indiv_seen=0, sp;
 	for ( sp=0; sp<pop->num_species; sp++ ) {
 		// Assign the primary array index to point to the right chunk
-		mem_by_spec[sp] = (Individual **) &mem_by_spec[pop->num_species + all_indiv_seen];
+		ranked[sp] = (Individual **) &ranked[pop->num_species + all_indiv_seen];
 		
 		// Find all members...
 		int sp_indiv_seen=0;
@@ -272,28 +303,39 @@ Individual ***get_population_ranking( Population *pop, int *err ) {
 				// Go through the conspecifics already in place...
 				for ( j=0; j<sp_indiv_seen; j++ ) {
 					// Shove the losers back...
-					if ( pop->members[i].score > mem_by_spec[sp][j]->score ) {
-						memmove( mem_by_spec[sp]+j+1, mem_by_spec[sp]+j, (sp_indiv_seen-j)*sizeof **mem_by_spec );
+					if ( pop->members[i].score > ranked[sp][j]->score ) {
+						memmove( ranked[sp]+j+1, ranked[sp]+j, (sp_indiv_seen-j)*sizeof **ranked );
 						break;
 					}
 				}
 				// ... so as to maintain order.
-				mem_by_spec[sp][j] = pop->members + i;
+				ranked[sp][j] = pop->members + i;
 				sp_indiv_seen++;
 			}
 		}
 		all_indiv_seen += sp_indiv_seen;
 	}
 
-	return mem_by_spec;
+	return ranked;
 }
 
-int mutate_population( Population *pop, struct NEAT_Params *params ) {
+int mutate_population( Population *pop, struct NEAT_Params *params, Individual **champions ) {
 	int i, k, l, err=0;
 	Node_Innovation ni[pop->num_members];
 	Link_Innovation li[pop->num_members];
 	int num_ni=0, num_li=0;
 	for ( i=0; i<pop->num_members; i++ ) {
+		// Don't mutate champions
+		int is_champ=0;
+		for ( k=0; k<pop->num_species; k++ ) {
+			if ( &pop->members[i] == champions[k] ) {
+				is_champ = 1;
+				break;
+			}
+		}
+		if ( is_champ )
+			continue;
+		
 		// Shortcut
 		CPPN *genotype =& pop->members[i].genotype;
 

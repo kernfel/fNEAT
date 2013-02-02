@@ -1,7 +1,6 @@
 #ifndef _PARAMS_H
 #define _PARAMS_H
 
-
 #define CFL_USE_DIST		(1 << 0) // Use calculated distance input
 #define CFL_USE_BIAS		(1 << 1) // Use a constant bias (1) input
 #define CFL_ALLOW_RECURRENCE	(1 << 2) // Allow recurrent connections, including loops with multiple nodes
@@ -38,8 +37,10 @@ struct NEAT_Params {
 					// Has no effect if ~CFL_ALLOW_RECURRENCE
 
 // Parameters related to the NEAT algorithm proper
-	int population_size;
-	int extinction_threshold;	// Minimum number of offspring a species must have to survive
+	int	population_size,
+		extinction_threshold,	// Minimum number of offspring a species must have to survive
+		champion_threshold;	// Minimum number of members a species must have to nominate an unmutated champion
+
 	double	survival_quota,		// Percentage of members that are allowed to reproduce
 		speciation_threshold,	// Genetic distance threshold
 		disjoint_factor,	// Factors for determining genetic distance
@@ -49,12 +50,17 @@ struct NEAT_Params {
 // Parameters related to mutations
 	double	add_link_prob,
 		add_node_prob,
-		change_weight_prob,	// Change link weights by a maximum of +/- change_weight_rate
-		change_weight_rate,
 		enable_link_prob,	// Enable previously disabled links
-		crossover_prob;
+		disable_link_prob,
+		crossover_prob,
+		
+		mutate_weights_prob,		// Probability that the network's weights are mutated (1)
+		perturb_weights_proportion,	// Proportion of links whose weights are perturbed, given (1)
+		perturb_weights_range,		// Upper/lower bound (+/- ~) of weight perturbation
+		reassign_weights_proportion,	// Proportion of links that are assigned random weights, given (1)
+		random_weights_range;		// Upper/lower bound (+/- ~) for randomly assigned weights
 
-// UID counters
+// UID counters -- initialise to 0
 	unsigned int innov_counter;
 	unsigned int species_counter;
 };

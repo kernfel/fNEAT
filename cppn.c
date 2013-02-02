@@ -89,27 +89,62 @@ void delete_CPPN( CPPN *net ) {
 	net->nodes = 0;
 }
 
+void randomise_CPPN_weights( CPPN *net, struct NEAT_Params *params ) {
+	int i;
+	double k=params->random_weights_range*2/RAND_MAX;
+	for ( i=0; i<net->num_links; i++ ) {
+		net->links[i].weight = k * rand() - params->random_weights_range;
+	}
+}
+
 int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Link_Innovation *li ) {
 	int i, j, err=0;
-	double p, s;
 	
-	// Mutate link weights within +/- change_weight_rate, regardless of whether links are disabled.
-	if ( params->change_weight_prob ) {
-		p = params->change_weight_prob * RAND_MAX;
-		s = params->change_weight_rate * 2.0 / RAND_MAX;
+	// Mutate (perturb or re-randomise) link weights
+	if ( params->mutate_weights_prob * RAND_MAX > rand() ) {
+		double k_pert = params->perturb_weights_range*2/RAND_MAX;
+		double k_rand = params->random_weights_range*2/RAND_MAX;
 		for ( i=0; i<net->num_links; i++ ) {
-			if ( p > rand() ) {
-				net->links[i].weight += s*rand() - params->change_weight_rate;
-			}
+			double p = rand() / RAND_MAX;
+			if ( params->perturb_weights_proportion > p )
+				net->links[i].weight += k_pert*rand() - params->perturb_weights_range;
+			else if ( params->reassign_weights_proportion > 1-p )
+				net->links[i].weight = k_rand*rand() - params->random_weights_range;
 		}
 	}
 	
-	// Enable disabled links
-	if ( params->enable_link_prob ) {
-		p = params->enable_link_prob * RAND_MAX;
-		for ( i=0; i<net->num_links; i++ ) {
-			if ( net->links[i].is_disabled && p > rand() ) {
-				net->links[i].is_disabled = 0;
+	// Toggle link disable
+	if ( params->enable_link_prob * RAND_MAX > rand() ) {
+		int n_dis=0;
+		for ( i=0; i<net->num_links; i++ )
+			if ( net->links[i].is_disabled )
+				n_dis++;
+		if ( n_dis ) {
+			n_dis = rand() % n_dis;
+			for ( i=0; i<net->num_links; i++ ) {
+				if ( net->links[i].is_disabled ) {
+					if ( ! (n_dis--) ) {
+						net->links[i].is_disabled = 0;
+						break;
+					}
+				}
+			}
+		}
+	}
+	if ( params->disable_link_prob * RAND_MAX > rand() ) {
+		int n_en=0;
+		for ( i=0; i<net->num_links; i++ )
+			if ( ! net->links[i].is_disabled )
+				n_en++;
+		if ( n_en ) {
+			n_en = rand() % n_en;
+			for ( i=0; i<net->num_links; i++ ) {
+				if ( ! net->links[i].is_disabled ) {
+					if ( ! (n_en--) ) {
+						net->links[i].is_disabled = 1;
+						break;
+					}
+				}
 			}
 		}
 	}
@@ -192,7 +227,7 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 				params,
 				source_id,
 				target_id,
-				2*params->change_weight_rate*rand()/RAND_MAX - params->change_weight_rate,
+				2*params->random_weights_range*rand()/RAND_MAX - params->random_weights_range,
 				0,
 				0
 			) ))
@@ -331,7 +366,8 @@ double CPPN_func( enum CPPNFunc fn, double x ) {
 		case CF_GAUSS:
 			return exp(-0.5*x*x)*M_2_SQRTPI*M_SQRT1_2*0.5; // sigma=1, mu=0
 		case CF_SIGMOID:
-			return tanh(x);
+			return 1.0/(1.0+exp(-4.9*x));
+			//return tanh(x);
 		case CF_SINE:
 			return sin(x);
 		case CF_STEP:

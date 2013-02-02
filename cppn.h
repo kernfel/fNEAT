@@ -55,6 +55,9 @@ void delete_CPPN( CPPN *trash );
 
 // ** Public methods
 
+// Randomise all weights uniformly within +-params->random_weights_range
+void randomise_CPPN_weights( CPPN *net, struct NEAT_Params *params );
+
 // Mutate net according to the probabilities given in parameters
 int mutate_CPPN( CPPN *net, struct NEAT_Params *parameters, Node_Innovation *ni, Link_Innovation *li );
 
