@@ -32,6 +32,10 @@ void get_params( struct NEAT_Params *params ) {
 	params->disjoint_factor = 1.0;
 	params->excess_factor = 1.0;
 	params->weight_factor = 0.4;
+	
+	params->stagnation_age_threshold = 15;
+	params->stagnation_score_threshold = 0.2;
+	params->stagnation_penalty = 1;
 
 	params->add_link_prob = 0.4;
 	params->add_node_prob = 0.02;
@@ -89,7 +93,7 @@ void xor() {
 	if (( err = create_CPPN( &seed, &params ) ))
 		exit(err);
 
-	int generation, i, j, winner, run, n_solved;
+	int generation, i, j, winner, run, n_solved=0;
 	int solved_in[100], nodes[100];
 	for ( run=0; run<100; run++ ) {
 	
@@ -101,7 +105,7 @@ void xor() {
 			double best_score = 0.0;
 			for ( i=0; i<pop.num_members; i++ ) {
 				for ( j=0; j<pop.num_species; j++ )
-					if ( pop.members[i].species_id == pop.species_ids[j] )
+					if ( pop.members[i].species_id == pop.species[j].id )
 						break;
 				eval_xor( &pop.members[i], &params, 1, 0 );
 				if ( pop.members[i].score > best_score ) {
@@ -119,12 +123,22 @@ void xor() {
 				break;
 			}
 
-			if (( err = epoch( &pop, &params ) ))
-				exit(err);
+			if (( err = epoch( &pop, &params ) )) {
+				winner = -2;
+				if ( err == E_NO_OFFSPRING )
+					break;
+				else
+					exit(err);
+			}
 		}
 
 		delete_Population( &pop );
-		putchar( winner==-1 ? '#':'-' );
+		if ( winner == -1 )
+			putchar('#');
+		else if ( winner == -2 )
+			putchar('@');
+		else
+			putchar('-');
 		fflush(stdout);
 	}
 	
@@ -176,7 +190,7 @@ void functest() {
 	while (++generation) {
 		printf( "\n-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\nGeneration %d -- %d species present: ", generation, pop.num_species );
 		for ( i=0; i<pop.num_species; i++ ) {
-			printf( "%d of #%d", pop.species_size[i], pop.species_ids[i] );
+			printf( "%d of #%d", pop.species[i].size, pop.species[i].id );
 			if ( i<pop.num_species-1 )
 				printf( ", " );
 		}
@@ -184,9 +198,9 @@ void functest() {
 		double best_score = 0.0;
 		for ( i=0; i<pop.num_members; i++ ) {
 			for ( j=0; j<pop.num_species; j++ )
-				if ( pop.members[i].species_id == pop.species_ids[j] )
+				if ( pop.members[i].species_id == pop.species[j].id )
 					break;
-/*			printf( "\nIndividual #%d (Species #%d) topology:\n", i+1, pop.species_ids[j] );*/
+/*			printf( "\nIndividual #%d (Species #%d) topology:\n", i+1, pop.species[j].id );*/
 /*			dump_CPPN( &pop.members[i].genotype );*/
 /*			printf( "Test results as follows:\n" );*/
 			eval_xor( &pop.members[i], &params, 1, 0 );
@@ -199,9 +213,9 @@ void functest() {
 		}
 		
 		for ( j=0; j<pop.num_species; j++ )
-			if ( pop.members[winner].species_id == pop.species_ids[j] )
+			if ( pop.members[winner].species_id == pop.species[j].id )
 				break;
-		printf( "The winner belongs to species #%d (idx %d), here it is:\n", pop.species_ids[j], j );
+		printf( "The winner belongs to species #%d (idx %d), here it is:\n", pop.species[j].id, j );
 		dump_CPPN( &pop.members[winner].genotype );
 		eval_xor( &pop.members[winner], &params, 0, 1 );
 		printf( "Score: %.2f\n", pop.members[winner].score );
@@ -220,16 +234,16 @@ void functest() {
 					continue;
 				int found=0;
 				for ( i=0; i<pop.num_species; i++ )
-					if ( pop.species_ids[i] == index ) {
+					if ( pop.species[i].id == index ) {
 						found = 1;
 						index = i;
 						break;
 					}
 				if ( ! found )
 					continue;
-				printf( "Species #%2d (idx %2d), %3d members:\n", pop.species_ids[index], index, pop.species_size[index] );
+				printf( "Species #%2d (idx %2d), %3d members:\n", pop.species[index].id, index, pop.species[index].size );
 				for ( i=0; i<pop.num_members; i++ ) {
-					if ( pop.species_ids[index] == pop.members[i].species_id ) {
+					if ( pop.species[index].id == pop.members[i].species_id ) {
 						printf( "\nMember #%3d, score: %.2f\n", i, pop.members[i].score );
 						dump_CPPN( &pop.members[i].genotype );
 					}

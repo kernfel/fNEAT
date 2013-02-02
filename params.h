@@ -10,6 +10,8 @@
 					// to facilitate their subsequent discovery.
 #define CFL_NO_DISTCALC_NORM	(1 << 6) // Assume "small" network, calculate genetic distance without normalising by link count
 
+#define E_NO_OFFSPRING (-10)
+
 enum CPPNFunc {
 	CF_GAUSS,
 	CF_SIGMOID,
@@ -46,6 +48,10 @@ struct NEAT_Params {
 		disjoint_factor,	// Factors for determining genetic distance
 		excess_factor,
 		weight_factor;
+	
+	int	stagnation_age_threshold;	// Number of generations a species is allowed to stagnate without penalty
+	double	stagnation_score_threshold,	// Amount of change needed to escape the stagnation guillotine
+		stagnation_penalty;
 
 // Parameters related to mutations
 	double	add_link_prob,

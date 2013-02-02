@@ -8,12 +8,18 @@ typedef struct Individual {
 	unsigned int species_id;
 } Individual;
 
+typedef struct Species {
+	unsigned int id;
+	int size;
+	int stagnating_for;
+	double mean_score;
+} Species;
+
 typedef struct Population {
 	Individual *members;
 	int num_members;
 
-	unsigned int *species_ids;
-	int *species_size;
+	Species *species;
 	int num_species;
 } Population;
 
@@ -50,7 +56,7 @@ int mutate_population( Population *pop, struct NEAT_Params *params, Individual *
 int speciate_population( Population *pop, struct NEAT_Params *params, const Individual *representatives );
 
 // Determine the number of offspring each species is allowed
-void get_population_fertility( Population *pop, struct NEAT_Params *params, int *num_offspring );
+int get_population_fertility( Population *pop, struct NEAT_Params *params, int *num_offspring );
 
 // Returns a 2D array of pointers sorting a population's members by species index (asc), then individual score (desc).
 // Individuals are accessed at x[species_index][individual_index].

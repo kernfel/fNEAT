@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "util.h"
 #include "params.h"
@@ -25,8 +26,8 @@ int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *
 	adam.genotype = *prototype;
 	adam.species_id = ++params->species_counter;
 	
-	pop->species_ids[0] = adam.species_id;
-	pop->species_size[0] = pop->num_members;
+	pop->species[0].id = adam.species_id;
+	pop->species[0].size = pop->num_members;
 	
 	int i;
 	for ( i=0; i<pop->num_members; i++ ) {
@@ -35,7 +36,7 @@ int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *
 			delete_Population( pop );
 			return err;
 		}
-		pop->members[i].species_id = pop->species_ids[0];
+		pop->members[i].species_id = adam.species_id;
 	}
 	
 	return err;
@@ -45,12 +46,10 @@ int allocate_Population( Population *pop ) {
 	int err=0;
 	
 	pop->members = 0;
-	pop->species_ids = 0;
-	pop->species_size = 0;
+	pop->species = 0;
 	
 	if (( err = Calloc( pop->members, pop->num_members, sizeof *pop->members ) )
-	 || ( err = Malloc( pop->species_ids, pop->num_species*sizeof *pop->species_ids ) )
-	 || ( err = Malloc( pop->species_size, pop->num_species*sizeof *pop->species_size ) ))
+	 || ( err = Calloc( pop->species, pop->num_species, sizeof *pop->species ) ))
 		delete_Population( pop );
 
 	return err;
@@ -61,11 +60,9 @@ void delete_Population( Population *pop ) {
 	for ( i=0; i<pop->num_members; i++ )
 		delete_CPPN( &pop->members[i].genotype );
 	free( pop->members );
-	free( pop->species_ids );
-	free( pop->species_size );
+	free( pop->species );
 	pop->members = 0;
-	pop->species_ids = 0;
-	pop->species_size = 0;
+	pop->species = 0;
 }
 
 void randomise_population( Population *pop, struct NEAT_Params *params ) {
@@ -109,7 +106,8 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 	int num_offspring[pop->num_species];
 	for ( i=0; i<pop->num_species; i++ )
 		num_offspring[i]=0; // Appease valgrind at low cost
-	get_population_fertility( pop, params, num_offspring );
+	if (( err = get_population_fertility( pop, params, num_offspring ) ))
+		return err;
 
 	// Get ranking
 	Individual ***ranked = get_population_ranking( pop, &err );
@@ -128,24 +126,24 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 			champions[i] = 0;
 		} else {
 			// Find out how many old individuals get to reproduce
-			num_parents[i] = 1 + (int)(params->survival_quota * pop->species_size[i]);
+			num_parents[i] = 1 + (int)(params->survival_quota * pop->species[i].size);
 			if ( num_parents[i] > num_offspring[i] )
 				num_parents[i] = num_offspring[i];
 			
 			// Save a random parent as representative for speciation
 			if (( err = clone_CPPN( &reps[i].genotype, &ranked[i][rand()%num_parents[i]]->genotype ) ))
 				goto failure;
-			reps[i].species_id = pop->species_ids[i];
+			reps[i].species_id = pop->species[i].id;
 			
 			// Make sure the champion survives unchanged
-			if ( pop->species_size[i] >= params->champion_threshold )
+			if ( pop->species[i].size >= params->champion_threshold )
 				champions[i] = ranked[i][0];
 			else
 				champions[i] = 0;
 		}
 
 		// Eliminate the infertile individuals and post job openings in free_slots
-		for ( j=num_parents[i]; j<pop->species_size[i]; j++ ) {
+		for ( j=num_parents[i]; j<pop->species[i].size; j++ ) {
 			free_slots[k] = ranked[i][j];
 			delete_CPPN( &free_slots[k]->genotype );
 			k++;
@@ -166,7 +164,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 			
 			// If necessary, spread its genes...
 			if ( j >= num_parents[i] ) {
-				free_slots[k]->species_id = pop->species_ids[i];
+				free_slots[k]->species_id = pop->species[i].id;
 				if (( err = clone_CPPN( &free_slots[k]->genotype, g ) ))
 					goto failure;
 				// ... and work with the result.
@@ -202,7 +200,7 @@ failure:
 }
 
 // Determine number of offspring per species
-void get_population_fertility( Population *pop, struct NEAT_Params *params, int *num_offspring ) {
+int get_population_fertility( Population *pop, struct NEAT_Params *params, int *num_offspring ) {
 	int i, j;
 	double species_scores[pop->num_species];
 	for ( i=0; i<pop->num_species; i++ ) {
@@ -212,7 +210,7 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 	// Add up all scores within a species
 	for ( i=0; i<pop->num_members; i++ ) {
 		for ( j=0; j<pop->num_species; j++ ) {
-			if ( pop->species_ids[j] == pop->members[i].species_id ) {
+			if ( pop->species[j].id == pop->members[i].species_id ) {
 				species_scores[j] += pop->members[i].score;
 				#ifdef VERBOSE
 					printf( "Member %3d in species #%2d, score: %2.2f\n", i, pop->species_ids[j], pop->members[i].score );
@@ -222,18 +220,25 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 		}
 	}
 
-	double average_scores[pop->num_species];
 	double sum_average_scores = 0.0;
 	int species_scoresort[pop->num_species];
 	for ( i=0; i<pop->num_species; i++ ) {
 
-		// Determine average score per species
-		average_scores[i] = species_scores[i] / pop->species_size[i];
-		sum_average_scores += average_scores[i];
+		// Determine average score
+		double mean_score = species_scores[i] / pop->species[i].size;
+
+		// Increase stagnation counter, where appropriate
+		if ( fabs( mean_score - pop->species[i].mean_score ) > params->stagnation_score_threshold )
+			pop->species[i].stagnating_for = 0;
+		else
+			pop->species[i].stagnating_for++;
+
+		pop->species[i].mean_score = mean_score;
+		sum_average_scores += mean_score;
 
 		// Sort species by average score, descending
 		for ( j=0; j<i; j++ ) {
-			if ( average_scores[i] > average_scores[species_scoresort[j]] ) {
+			if ( pop->species[i].mean_score > pop->species[species_scoresort[j]].mean_score ) {
 				memmove( species_scoresort+j+1, species_scoresort+j, (i-j)*sizeof *species_scoresort );
 				break;
 			}
@@ -242,46 +247,54 @@ void get_population_fertility( Population *pop, struct NEAT_Params *params, int 
 	}
 
 	// Assign offspring in proportion to a species' average score
-	int unassigned_offspring = params->population_size;
+	int unassigned_offspring = params->population_size, living_species=0;
 	for ( i=0; i<pop->num_species; i++ ) {
-		num_offspring[i] = (int)(params->population_size*average_scores[i]/sum_average_scores);
-		unassigned_offspring -= num_offspring[i];
-	}
-
-	// Throw the winners some scraps from rounding error
-	for ( i=0; i<unassigned_offspring; i++ ) {
-		num_offspring[species_scoresort[i]]++;
-	}
-	unassigned_offspring = 0;
-
-	// Let subthreshold species go extinct
-	for ( i=0; i<pop->num_species; i++ ) {
-		if ( num_offspring[i] < params->extinction_threshold ) {
-			unassigned_offspring += num_offspring[i];
+		// Penalise stagnation
+		if ( pop->species[i].stagnating_for < params->stagnation_age_threshold )
+			num_offspring[i] = (int)(params->population_size * pop->species[i].mean_score/sum_average_scores);
+		else
+			num_offspring[i] = (int)(params->population_size * (1-params->stagnation_penalty) * pop->species[i].mean_score/sum_average_scores);
+		// Kill insular species
+		if ( num_offspring[i] < params->extinction_threshold )
 			num_offspring[i] = 0;
+		
+		if ( num_offspring[i] ) {
+			living_species++;
+			unassigned_offspring -= num_offspring[i];
 		}
 	}
-	
-	// ... and redistribute these scraps, too
-	for ( i=0; unassigned_offspring>0; i++ ) {
-		if ( num_offspring[species_scoresort[i%pop->num_species]] ) {
-			num_offspring[species_scoresort[i%pop->num_species]]++;
-			unassigned_offspring--;
+
+	if ( ! living_species )
+		return E_NO_OFFSPRING;
+
+	// Distribute leftovers
+	int shared=unassigned_offspring/living_species, stolen=unassigned_offspring%living_species;
+	if ( shared || stolen ) {
+		for ( i=0; i<pop->num_species; i++ ) {
+			if ( num_offspring[i] ) {
+				num_offspring[i] += shared;
+				if ( stolen ) {
+					num_offspring[i]++;
+					stolen--;
+				}
+			}
 		}
 	}
 	
 	#ifdef VERBOSE
 		for ( i=0; i<pop->num_species; i++ ) {
 			printf( "Species #%2d (idx %2d) - %3d members, %2d offspring - total score: %6.2f | avg score: %2.2f\n",
-				pop->species_ids[i],
+				pop->species[i].id,
 				i,
-				pop->species_size[i],
+				pop->species[i].size,
 				num_offspring[i],
 				species_scores[i],
-				average_scores[i]
+				pop->species[i].mean_score
 			);
 		}
 	#endif
+	
+	return 0;
 }
 
 Individual ***get_population_ranking( Population *pop, int *err ) {
@@ -299,7 +312,7 @@ Individual ***get_population_ranking( Population *pop, int *err ) {
 		int sp_indiv_seen=0;
 		for ( i=0; i<pop->num_members; i++ ) {
 			// ...of that species...
-			if ( pop->members[i].species_id == pop->species_ids[sp] ) {
+			if ( pop->members[i].species_id == pop->species[sp].id ) {
 				// Go through the conspecifics already in place...
 				for ( j=0; j<sp_indiv_seen; j++ ) {
 					// Shove the losers back...
@@ -408,7 +421,7 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 	int i, j, num_new_species=0, num_extinct=0;
 	
 	for ( i=0; i<pop->num_species; i++ ) {
-		pop->species_size[i] = 0;
+		pop->species[i].size = 0;
 	}
 	
 	int new_species_size[pop->num_members];
@@ -422,7 +435,7 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 				if ( reps[j].species_id == pop->members[i].species_id ) {
 					double distance = get_genetic_distance( &pop->members[i].genotype, &reps[j].genotype, params );
 					if ( distance < params->speciation_threshold ) {
-						pop->species_size[j]++;
+						pop->species[j].size++;
 						assigned = 1;
 						break;
 					}
@@ -437,7 +450,7 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 					double distance = get_genetic_distance( &pop->members[i].genotype, &reps[j].genotype, params );
 					if ( distance < params->speciation_threshold ) {
 						pop->members[i].species_id = reps[j].species_id;
-						pop->species_size[j]++;
+						pop->species[j].size++;
 						assigned = 1;
 						break;
 					}
@@ -467,7 +480,7 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 	}
 	
 	for ( i=0; i<pop->num_species; i++ ) {
-		if ( ! pop->species_size[i] )
+		if ( ! pop->species[i].size )
 			num_extinct++;
 	}
 	
@@ -477,30 +490,26 @@ int speciate_population( Population *pop, struct NEAT_Params *params, const Indi
 	
 	// Compose a new list with all the (living) species and replace the old one with that
 	int err=0;
-	unsigned int *all_ids;
-	int *all_size, num_all = pop->num_species + num_new_species - num_extinct;
-	if (( err = Malloc( all_ids, num_all*sizeof *all_ids ) )
-	 || ( err = Malloc( all_size, num_all*sizeof *all_size ) ))
+	int num_all = pop->num_species + num_new_species - num_extinct;
+	Species *all_species;
+	if (( err = Calloc( all_species, num_all, sizeof *all_species ) ))
 		return err;
 	
 	j=0;
 	for ( i=0; i<pop->num_species; i++ ) {
-		if ( pop->species_size[i] ) {
-			all_ids[j] = reps[i].species_id;
-			all_size[j] = pop->species_size[i];
+		if ( pop->species[i].size ) {
+			all_species[j] = pop->species[i];
 			j++;
 		}
 	}
 	for ( i=0; i<num_new_species; i++ ) {
-		all_ids[j] = new_reps[i]->species_id;
-		all_size[j] = new_species_size[i];
+		all_species[j].id = new_reps[i]->species_id;
+		all_species[j].size = new_species_size[i];
 		j++;
 	}
 	
-	free( pop->species_ids );
-	free( pop->species_size );
-	pop->species_ids = all_ids;
-	pop->species_size = all_size;
+	free( pop->species );
+	pop->species = all_species;
 	pop->num_species = num_all;
 	
 	return err;
