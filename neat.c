@@ -89,6 +89,15 @@ int epoch( Population *pop, struct NEAT_Params *params ) {
 	// Divide the offspring into species
 	if (( err = speciate_population( pop, params, reps ) ))
 		goto cleanup;
+	
+	// Adjust the speciation threshold for next generation
+	if ( params->target_num_species ) {
+		if ( pop->num_species < params->target_num_species && params->speciation_threshold > params->d_speciation_threshold )
+			params->speciation_threshold -= params->d_speciation_threshold;
+		else if ( pop->num_species > params->target_num_species \
+		 && params->speciation_threshold + params->d_speciation_threshold <= params->max_speciation_threshold )
+			params->speciation_threshold += params->d_speciation_threshold;
+	}
 
 cleanup:
 	for ( i=0; i<num_reps; i++ )

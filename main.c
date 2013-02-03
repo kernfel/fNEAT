@@ -26,9 +26,12 @@ void get_params( struct NEAT_Params *params ) {
 	params->population_size = 100;
 	params->extinction_threshold = 2;
 	params->champion_threshold = 5;
-	params->survival_quota = 0.2;
+	params->target_num_species = 10;
 
+	params->survival_quota = 0.2;
 	params->speciation_threshold = 3.0;
+	params->d_speciation_threshold = 0.1;
+	params->max_speciation_threshold = 5.0;
 	params->disjoint_factor = 1.0;
 	params->excess_factor = 1.0;
 	params->weight_factor = 0.4;
@@ -96,6 +99,8 @@ void xor() {
 	int generation, i, j, winner, run, n_solved=0;
 	int solved_in[100], nodes[100];
 	for ( run=0; run<100; run++ ) {
+	
+		params.speciation_threshold = 3.0;
 	
 		if (( err = create_Population( &pop, &params, &seed ) ))
 			exit(err);
@@ -343,7 +348,7 @@ void hillclimbing() {
 	} while (( c=getchar() ));
 }
 
-int main() {
+int main( int argc, char **argv ) {
 	srand(time(0));
 	xor();
 	return 0;

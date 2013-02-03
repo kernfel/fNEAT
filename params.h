@@ -41,10 +41,13 @@ struct NEAT_Params {
 // Parameters related to the NEAT algorithm proper
 	int	population_size,
 		extinction_threshold,	// Minimum number of offspring a species must have to survive
-		champion_threshold;	// Minimum number of members a species must have to nominate an unmutated champion
+		champion_threshold,	// Minimum number of members a species must have to nominate an unmutated champion
+		target_num_species;	// Number of species to aim for. Set to 0 to disable dynamic speciation
 
 	double	survival_quota,		// Percentage of members that are allowed to reproduce
 		speciation_threshold,	// Genetic distance threshold
+		d_speciation_threshold,	// Rate of change (up or down) to the speciation_threshold in dynamic speciation mode
+		max_speciation_threshold,	// Upper bound for dynamic speciation
 		disjoint_factor,	// Factors for determining genetic distance
 		excess_factor,
 		weight_factor;
