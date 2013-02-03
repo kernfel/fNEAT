@@ -45,6 +45,7 @@ void get_params( struct NEAT_Params *params ) {
 	params->enable_link_prob = 0.25;
 	params->disable_link_prob = 0.01;
 	params->crossover_prob = 0.75;
+	params->interspecies_mating_prob = 0.0;
 	
 	params->mutate_weights_prob = 0.8;
 	params->perturb_weights_proportion = 0.75;

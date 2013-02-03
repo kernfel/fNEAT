@@ -62,6 +62,7 @@ struct NEAT_Params {
 		enable_link_prob,	// Enable previously disabled links
 		disable_link_prob,
 		crossover_prob,
+		interspecies_mating_prob,
 		
 		mutate_weights_prob,		// Probability that the network's weights are mutated (1)
 		perturb_weights_proportion,	// Proportion of links whose weights are perturbed, given (1)

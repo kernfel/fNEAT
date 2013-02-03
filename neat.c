@@ -181,7 +181,7 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 			}
 
 			// Perform crossover
-			if ( params->crossover_prob * RAND_MAX > rand() && num_parents[i] > 1 ) {
+			if ( num_parents[i] > 1 && params->crossover_prob * RAND_MAX > rand() ) {
 				// Find a non-self partner in the same species
 				int l=rand()%(num_parents[i]-1);
 				if ( l >= j )
@@ -189,6 +189,26 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 				// Do the deed
 				if (( err = crossover_CPPN( g, &ranked[i][l]->genotype, params ) ))
 					goto failure;
+
+			// Interspecies crossover
+			}
+			 else if ( pop->num_species > 1 \
+			 && params->interspecies_mating_prob > 0 \
+			 && params->interspecies_mating_prob * RAND_MAX > rand() ) {
+				do {
+					// Select a species to mate with
+					int l=rand()%(pop->num_species-1);
+					if ( l >= i )
+						l++;
+					// If that species doesn't do offspring, cancel the mating attempt
+					if ( ! num_parents[l] )
+						break;
+					// Select a mate within the chosen species
+					int m=rand()%num_parents[l];
+					// Have at it
+					if (( err = crossover_CPPN( g, &ranked[l][m]->genotype, params ) ))
+						goto failure;
+				} while (0);
 			}
 		}
 	}
