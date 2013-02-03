@@ -15,6 +15,9 @@
 
 #define E_NO_OFFSPRING (-10)
 
+// HyperNEAT's substrate space dimensionality
+#define DIMENSIONS 1
+
 enum CPPNFunc {
 	CF_GAUSS,
 	CF_SIGMOID,
@@ -29,7 +32,6 @@ struct NEAT_Params {
 	unsigned int flags;
 
 // Parameters related to Hyper
-	int num_dimensions;		// Dimensionality of the substrate space
 	int num_outputs;		// Number of output values in the CPPN
 	enum CPPNFunc *output_funcs;	// Output activation functions
 	int *initially_linked_outputs;	// Output nodes to fully connect with inputs at initialisation

@@ -67,7 +67,7 @@ int crossover_CPPN( CPPN *net, const CPPN *mate, struct NEAT_Params *params );
 // Activate net to read its (final) output value at coords.
 // Note that neither distance nor bias should be added to coords!
 // Returns the cumulated activation deltas of the last activation iteration.
-double read_CPPN( CPPN *net, const struct NEAT_Params *parameters, double *coords, double *output );
+double read_CPPN( CPPN *net, const struct NEAT_Params *parameters, double *source, double *target, double *output );
 
 // Determine genetic distance
 double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NEAT_Params *parameters );

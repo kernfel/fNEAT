@@ -14,7 +14,7 @@ int create_CPPN( CPPN *net, struct NEAT_Params *params )
 	
 	// Determine number of nodes and links
 	net->num_outputs = params->num_outputs;
-	net->num_inputs = 2*params->num_dimensions + ((params->flags & CFL_USE_DIST)? 1:0) + ((params->flags & CFL_USE_BIAS)? 1:0);
+	net->num_inputs = 2*DIMENSIONS + ((params->flags & CFL_USE_DIST)? 1:0) + ((params->flags & CFL_USE_BIAS)? 1:0);
 	net->num_hidden = 0;
 	if ( params->flags & CFL_MASK_INIT_UNLINKED ) {
 		net->num_links = net->num_inputs * net->num_outputs;
@@ -388,18 +388,21 @@ double CPPN_func( enum CPPNFunc fn, double x ) {
 	}
 }
 
-double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *coords, double *output ) {
+double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *source, double *target, double *output ) {
 	int i,j;
 	int num_nodes = net->num_inputs+net->num_hidden+net->num_outputs;
 	
 	// Set input values
-	for ( i=0; i<2*params->num_dimensions; i++ ) {
-		net->nodes[i].activation = CPPN_func(net->nodes[i].func, coords[i]);
+	for ( i=0; i<DIMENSIONS; i++ ) {
+		net->nodes[i].activation = CPPN_func(net->nodes[i].func, source[i]);
+	}
+	for ( ; i<2*DIMENSIONS; i++ ) {
+		net->nodes[i].activation = CPPN_func(net->nodes[i].func, target[i-DIMENSIONS]);
 	}
 	if ( params->flags & CFL_USE_DIST ) {
 		double d=0.0;
-		for ( j=0; j<params->num_dimensions; j++ )
-			d += pow(coords[j]-coords[j+params->num_dimensions], 2);
+		for ( j=0; j<DIMENSIONS; j++ )
+			d += pow(source[j]-target[j], 2);
 		net->nodes[i].activation = CPPN_func(net->nodes[i].func, (params->flags & CFL_SQUARE_DIST) ? d : sqrt(d));
 		i++;
 	}

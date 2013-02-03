@@ -14,7 +14,6 @@ void dump_CPPN( CPPN *net );
 void get_params( struct NEAT_Params *params ) {
 	params->flags = CFL_USE_BIAS | CFL_NO_DISTCALC_NORM;
 
-	params->num_dimensions = 1;
 	params->num_outputs = 0;
 	params->output_funcs = NULL;
 	params->initially_linked_outputs = NULL;
@@ -69,7 +68,7 @@ void eval_xor( Individual *dude, struct NEAT_Params *params, int record, int ver
 	if ( record )
 		dude->score = 4.0;
 	for ( j=0; j<4; j++ ) {
-		read_CPPN( &dude->genotype, params, test[j], &result[j] );
+		read_CPPN( &dude->genotype, params, test[j], test[j]+1, &result[j] );
 		d = result[j]-test[j][2];
 		if ( record )
 			dude->score -= fabs(d);
