@@ -205,11 +205,21 @@ int mutate_CPPN( CPPN *net, struct NEAT_Params *params, Node_Innovation *ni, Lin
 		if ( !(params->flags & CFL_ALLOW_RECURRENCE) )
 			num_possible_sources -= CPPN_exclude_recurrent_links( net, params, target_id, possible_sources );
 		
+		// Exclude output to hidden
+		if ( !(params->flags & CFL_ALLOW_OUTPUT_TO_HIDDEN) && target_id >= net->num_inputs+net->num_outputs ) {
+			for ( i=net->num_inputs; i<net->num_inputs+net->num_outputs; i++ ) {
+				num_possible_sources -= possible_sources[i];
+				possible_sources[i] = 0;
+			}
+		
 		// Exclude output-to-output links
-		if ( !(params->flags & CFL_ALLOW_O_TO_O) && target_id < net->num_inputs+net->num_outputs ) {
-			for ( i=0; i<net->num_outputs; i++ ) {
-				num_possible_sources -= possible_sources[i+net->num_inputs];
-				possible_sources[i+net->num_inputs] = 0;
+		} else if ( !(params->flags & CFL_ALLOW_OUTPUT_TO_OUTPUT) && target_id < net->num_inputs+net->num_outputs ) {
+			int skip_self = params->flags & CFL_ALLOW_RECURRENCE && params->flags & CFL_ALLOW_OUTPUT_TO_SELF;
+			for ( i=net->num_inputs; i<net->num_inputs+net->num_outputs; i++ ) {
+				if ( skip_self && i == target_id )
+					continue;
+				num_possible_sources -= possible_sources[i];
+				possible_sources[i] = 0;
 			}
 		}
 		
