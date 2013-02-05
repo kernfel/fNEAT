@@ -13,7 +13,7 @@ int create_CPPN( CPPN *net, struct NEAT_Params *params )
 	int i, j, err=0;
 	
 	// Determine number of nodes and links
-	net->num_outputs = params->num_outputs;
+	net->num_outputs = N_OUTPUTS;
 	net->num_inputs = 2*DIMENSIONS + ((params->flags & CFL_USE_DIST)? 1:0) + ((params->flags & CFL_USE_BIAS)? 1:0);
 	net->num_hidden = 0;
 	if ( params->flags & CFL_MASK_INIT_UNLINKED ) {

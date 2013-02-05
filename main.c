@@ -14,9 +14,8 @@ void dump_CPPN( CPPN *net );
 void get_params( struct NEAT_Params *params ) {
 	params->flags = CFL_USE_BIAS | CFL_NO_DISTCALC_NORM;
 
-	params->num_outputs = 0;
-	params->output_funcs = NULL;
-	params->initially_linked_outputs = NULL;
+	params->output_funcs[0] = CF_SIGMOID;
+	params->initially_linked_outputs[0] = 1;
 
 	params->allowed_funcs = NULL;
 	params->num_allowed_funcs = 0;
@@ -88,9 +87,6 @@ void xor() {
 	get_params( &params );
 	params.allowed_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
 	params.num_allowed_funcs = 1;
-	params.output_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
-	params.num_outputs = 1;
-	params.initially_linked_outputs = (int[]){1};
 	params.population_size = 150;
 
 	if (( err = create_CPPN( &seed, &params ) ))
@@ -179,9 +175,6 @@ void functest() {
 	get_params( &params );
 	params.allowed_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
 	params.num_allowed_funcs = 1;
-	params.output_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
-	params.num_outputs = 1;
-	params.initially_linked_outputs = (int[]){1};
 	params.population_size = 150;
 	
 	if (( err = create_CPPN( &seed, &params ) )
@@ -325,9 +318,6 @@ void hillclimbing() {
 	get_params( &params );
 	params.allowed_funcs = (enum CPPNFunc[]){CF_SIGMOID};
 	params.num_allowed_funcs = 1;
-	params.output_funcs = (enum CPPNFunc[]){CF_SIGMOID};
-	params.num_outputs = 1;
-	params.initially_linked_outputs = (int[]){1};
 	
 	create_CPPN( &net1, &params );
 	clone_CPPN( &net2, &net1 );

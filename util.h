@@ -1,5 +1,6 @@
 #ifndef _UTIL_H
 #define _UTIL_H
+#include <stdlib.h>
 
 #define E_ALLOC (-1)
 #define E_ASSERT (-2)
