@@ -34,7 +34,14 @@ struct NEAT_Params {
 // Flags, see above
 	unsigned int flags;
 
-// Parameters related to Hyper
+// Parameters related to network extraction
+	int	min_resolution,
+		max_resolution;
+	double	variance_threshold,
+		band_threshold,
+		output_bandpruning_weight[N_OUTPUTS];
+
+// Parameters related to HyperNEAT function
 	enum CPPNFunc output_funcs[N_OUTPUTS];	// Output activation functions
 	int initially_linked_outputs[N_OUTPUTS];	// Output nodes to fully connect with inputs at initialisation
 
