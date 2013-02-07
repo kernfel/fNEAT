@@ -8,24 +8,23 @@
 
 static const CLUSTERSIZE = 1<<DIMENSIONS;
 
-int extract_links( const double ref[DIMENSIONS], unsigned char outgoing, CPPN *cppn, struct NEAT_Params *params ) {
+int extract_links( struct Extraction_Params *eparams ) {
 	int i, err=0;
 	
 	BinLeaf root = {0};
-	struct Extraction_Params eparams = { &root, 0, outgoing, cppn, params };
-	memcpy( eparams.ref, ref, DIMENSIONS*sizeof *ref );
+	eparams->root = &root;
 	
-	if (( err = build_tree( &root, &eparams ) )) {
-		delete_tree( &root );
-		return err;
+	if (( err = build_tree( &root, eparams ) )) {
+		goto cleanup;
 	}
 	
-	if (( err = extract_tree( &root, &eparams ) )) {
-		// Clean up all the mess that leaves behind
-		delete_tree( &root );
-		return err;
+	if (( err = extract_tree( &root, eparams ) )) {
+		goto cleanup;
 	}
-	
+
+cleanup:
+	delete_tree( &root );
+	eparams->root = 0;
 	return err;
 }
 
@@ -113,11 +112,7 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 
 		// Add a new connection
 		if ( dband > eparams->params->band_threshold ) {
-/*
-NYI
-			connect( p, eparams );
-NYI
-*/
+			connect_pNet( p, eparams );
 		}
 	}
 }

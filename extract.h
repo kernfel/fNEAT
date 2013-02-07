@@ -17,12 +17,14 @@ struct Extraction_Params {
 	unsigned char outgoing;
 	CPPN *cppn;
 	struct NEAT_Params *params;
+	struct pNetwork *net;
 };
 
 // *** Public
 
-// Main entry point. Supply coordinates of a reference point from/to (outgoing=1/0) which to build connections
-int extract_links( const double ref[DIMENSIONS], unsigned char outgoing, CPPN *cppn, struct NEAT_Params *params );
+// Main entry point. Supply coordinates of a reference point from/to which to build connections
+// Requires eparams to be populated with all of the following: ref, outgoing, cppn, params, net.
+int extract_links( struct Extraction_Params *eparams );
 
 
 // *** Internal

@@ -1,6 +1,11 @@
 #ifndef _PARAMS_H
 #define _PARAMS_H
 
+// Default network implementation. To use other implementations, compile with the appropriate "-include file.h" argument.
+#ifndef N_OUTPUTS
+#include "network-static.h"
+#endif
+
 #define CFL_USE_DIST			(1 << 0) // Use calculated distance input
 #define CFL_SQUARE_DIST			(1 << 1) // Feed the squared distance, rather than the linear one, into the distance input
 #define CFL_USE_BIAS			(1 << 2) // Use a constant bias (1) input
@@ -16,10 +21,14 @@
 #define E_NO_OFFSPRING (-10)
 
 // HyperNEAT's substrate space dimensionality
+#ifndef DIMENSIONS
 #define DIMENSIONS 1
+#endif
 
 // Number of output values in the CPPN
+#ifndef N_OUTPUTS
 #define N_OUTPUTS 1
+#endif
 
 enum CPPNFunc {
 	CF_GAUSS,
