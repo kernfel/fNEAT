@@ -3,13 +3,14 @@
 
 #include "util.h"
 #include "params.h"
+#include "network.h"
 
 #include "extract.h"
 
-static const CLUSTERSIZE = 1<<DIMENSIONS;
+static const int CLUSTERSIZE = 1<<DIMENSIONS;
 
 int extract_links( struct Extraction_Params *eparams ) {
-	int i, err=0;
+	int err=0;
 	
 	BinLeaf root = {0};
 	eparams->root = &root;
@@ -53,7 +54,7 @@ int build_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 
 	// Recurse
 	if ( p->level < eparams->params->min_resolution \
-	 || p->level < eparams->params->max_resolution && get_binleaf_variance(p) > eparams->params->variance_threshold ) {
+	 || ( p->level < eparams->params->max_resolution && get_binleaf_variance(p, eparams->params) > eparams->params->variance_threshold ) ) {
 		for ( i=0; i<CLUSTERSIZE; i++ ) {
 			if (( err = build_tree( &p->c[i], eparams ) ))
 				return err;
@@ -73,7 +74,7 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 	//	=> check variance over all c to decide whether to express them or not
 	// Since variance is not calculated recursively, this process may leave a few fragments from min_resolution.
 	if ( p->c[0].c \
-	 || p->level == eparams->params->max_resolution && get_binleaf_variance(p) > eparams->params->variance_threshold ) {
+	 || ( p->level == eparams->params->max_resolution && get_binleaf_variance(p, eparams->params) > eparams->params->variance_threshold ) ) {
 		for ( i=0; i<CLUSTERSIZE; i++ ) {
 			if (( err = extract_tree( &p->c[i], eparams ) ))
 				return err;
@@ -97,13 +98,8 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 			// Calculate weighted difference
 			double dleft=0, dright=0;
 			for ( j=0; j<N_OUTPUTS; j++ ) {
-				if ( eparams->params->output_bandpruning_weight ) {
-					dleft += eparams->params->output_bandpruning_weight[j] * fabs(p->r[j] - left[j]);
-					dright += eparams->params->output_bandpruning_weight[j] * fabs(p->r[j] - right[j]);
-				} else {
-					dleft += fabs(p->r[j] - left[j]);
-					dright += fabs(p->r[j] - right[j]);
-				}
+				dleft += eparams->params->output_bandpruning_weight[j] * fabs(p->r[j] - left[j]);
+				dright += eparams->params->output_bandpruning_weight[j] * fabs(p->r[j] - right[j]);
 			}
 			double ddim = dleft < dright ? dleft : dright;
 			if ( ddim > dband )
@@ -112,9 +108,12 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 
 		// Add a new connection
 		if ( dband > eparams->params->band_threshold ) {
-			connect_pNet( p, eparams );
+			if (( err = connect_pNet( p, eparams ) ))
+				return err;
 		}
 	}
+
+	return err;
 }
 
 void get_activation_at( double x[DIMENSIONS], double r[N_OUTPUTS], struct Extraction_Params *eparams ) {
@@ -162,7 +161,7 @@ void get_activation_at( double x[DIMENSIONS], double r[N_OUTPUTS], struct Extrac
 		read_CPPN( eparams->cppn, eparams->params, x, eparams->ref, r );
 }
 
-double get_binleaf_variance( BinLeaf *p ) {
+double get_binleaf_variance( BinLeaf *p, struct NEAT_Params *params ) {
 	int i,j;
 	double sum_of_variances=0;
 	for ( j=0; j<N_OUTPUTS; j++ ) {
@@ -174,10 +173,11 @@ double get_binleaf_variance( BinLeaf *p ) {
 		for ( i=0; i<CLUSTERSIZE; i++ ) {
 			sum_of_deviations += fabs( mean - p->c[i].r[j] );
 		}
-		sum_of_variances += sum_of_deviations/CLUSTERSIZE;
+
+		sum_of_variances += sum_of_deviations/CLUSTERSIZE * params->output_variance_weight[j];
 	}
 	
-	return sum_of_variances;
+	return sum_of_variances/N_OUTPUTS;
 }
 
 void delete_tree( BinLeaf *p ) {

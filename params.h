@@ -20,7 +20,7 @@
 #define CFL_NO_DISTCALC_NORM		(1 << 8) // Assume "small" network, calculate genetic distance without normalising by link count
 
 // *** Extraction flags
-#define EFL_RETAIN_DEAD_ENDS		(1 << 10) // Retain substrate nodes that don't reach both an input and an output node
+#define EFL_NO_BACKTRACKING		(1 << 10) // Don't specially mark substrate nodes that don't reach both an input and an output node 
 
 // *** Error codes
 #define E_NO_OFFSPRING (-10)
@@ -49,10 +49,15 @@ struct NEAT_Params {
 	unsigned int flags;
 
 // Parameters related to network extraction
-	int	min_resolution,
-		max_resolution;
-	double	variance_threshold,
-		band_threshold,
+	int	min_resolution,		// Minimal resolution of the substrate space to explore
+		max_resolution,
+		max_network_depth;	// Number of hidden layers to explore in the substrate space
+
+	double	variance_threshold,	// Min variance among the children (quadrants etc) of a given spatial region required to continue exploration
+		output_variance_weight[N_OUTPUTS],	// Relative weights of the CPPN outputs for variance calculation and band pruning
+			// Note, the variance threshold is checked against the weighted mean of variances for each CPPN output value.
+		band_threshold,		// Min gradient of a quadrant relative to its neighbours required to warrant link expression
+			// Note, the band threshold is checked against the steepest gradient and disregards flatter axes.
 		output_bandpruning_weight[N_OUTPUTS];
 
 // Parameters related to HyperNEAT function

@@ -40,7 +40,7 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams );
 void get_activation_at( double x[DIMENSIONS], double activation[N_OUTPUTS], struct Extraction_Params *eparams );
 
 // Calculate the variance among a leaf's child nodes
-double get_binleaf_variance( BinLeaf *p );
+double get_binleaf_variance( BinLeaf *p, struct NEAT_Params *params );
 
 // Prune the shrubbery to a smoking stump
 void delete_tree( BinLeaf *p );
