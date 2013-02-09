@@ -15,6 +15,7 @@ struct Extraction_Params {
 	BinLeaf *root;
 	double ref[DIMENSIONS];
 	unsigned char outgoing;
+	unsigned char create_nodes;
 	CPPN *cppn;
 	struct NEAT_Params *params;
 	struct pNetwork *net;

@@ -3,22 +3,26 @@
 
 #include "params.h"
 #include "extract.h"
+#include "cppn.h"
 
 // *** Full network structure for extraction (p=positional)
 typedef struct pNode {
 	eNode *n;
 	double x[DIMENSIONS];
+	unsigned char track;
 } pNode;
 
 typedef struct pLink {
 	eLink *l;
 	pNode *from, *to;
+	unsigned char track;
 } pLink;
 
 typedef struct pNetwork {
 	unsigned int num_nodes, num_node_blocks;
 	pNode **p_nodes;
 	eNode **e_nodes;
+	int num_inputs, num_outputs;
 	
 	unsigned int num_links, num_link_blocks;
 	pLink **p_links;
@@ -34,10 +38,11 @@ void delete_pNetwork( pNetwork *n , int retain_eNet );
 
 // *** Function prototype - use in specific network implementations
 // This function is called by connect_pNet once the pNet connection is established and should initialise eNode and eLink data.
-int connect_eNet( pNode *source_pnode, pNode *target_pnode, pLink *plink, struct BinLeaf *leaf, struct Extraction_Params *eparams );
+int connect_eNet( pNode *source_pnode, pNode *target_pnode, pLink *plink, BinLeaf *leaf, struct Extraction_Params *eparams );
 
 // *** Public
-int connect_pNet( struct BinLeaf *leaf, struct Extraction_Params *eparams );
+int build_network( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int num_inputs, pNode *inputs, int num_outputs, pNode *outputs );
+int connect_pNet( BinLeaf *leaf, struct Extraction_Params *eparams );
 
 // *** Internal
 int add_pNode( pNetwork *n, double x[DIMENSIONS], pNode **result );

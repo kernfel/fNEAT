@@ -6,6 +6,7 @@
 #include "network-static.h"
 #endif
 
+// *** CPPN flags
 #define CFL_USE_DIST			(1 << 0) // Use calculated distance input
 #define CFL_SQUARE_DIST			(1 << 1) // Feed the squared distance, rather than the linear one, into the distance input
 #define CFL_USE_BIAS			(1 << 2) // Use a constant bias (1) input
@@ -18,6 +19,10 @@
 						// to facilitate their subsequent discovery.
 #define CFL_NO_DISTCALC_NORM		(1 << 8) // Assume "small" network, calculate genetic distance without normalising by link count
 
+// *** Extraction flags
+#define EFL_RETAIN_DEAD_ENDS		(1 << 10) // Retain substrate nodes that don't reach both an input and an output node
+
+// *** Error codes
 #define E_NO_OFFSPRING (-10)
 
 // HyperNEAT's substrate space dimensionality

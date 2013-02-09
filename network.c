@@ -5,6 +5,7 @@
 
 #include "extract.h"
 #include "network.h"
+#include "cppn.h"
 
 #ifndef BLOCKSIZE_NODES
 #define BLOCKSIZE_NODES 256
@@ -29,6 +30,8 @@ int create_pNetwork( pNetwork *n ) {
 	n->e_nodes[0] = 0;
 	n->num_nodes = 0;
 	n->num_node_blocks = 1;
+	n->num_inputs = 0;
+	n->num_outputs = 0;
 
 	n->p_links[0] = 0;
 	n->e_links[0] = 0;
@@ -95,6 +98,7 @@ int add_pNode( pNetwork *n, double x[DIMENSIONS], pNode **result ) {
 	int index = n->num_nodes % BLOCKSIZE_NODES;
 	pNode *new = &n->p_nodes[block][index];
 	new->n = &n->e_nodes[block][index];
+	new->track = 0;
 	memcpy( new->x, x, DIMENSIONS*sizeof *x );
 
 	n->num_nodes++;
@@ -128,6 +132,7 @@ int add_pLink( pNetwork *n, pNode *from, pNode *to, pLink **result ) {
 	new->l = &n->e_links[block][index];
 	new->from = from;
 	new->to = to;
+	new->track = 0;
 
 	n->num_links++;
 
@@ -175,11 +180,15 @@ int connect_pNet( BinLeaf *leaf, struct Extraction_Params *eparams ) {
 
 	// Create what does not exist
 	if ( ! source_pnode ) {
+		if ( ! eparams->create_nodes )
+			return 0;
 		source_index = eparams->net->num_nodes;
 		if (( err = add_pNode( eparams->net, source, &source_pnode ) ))
 			return err;
 	}
 	if ( ! target_pnode ) {
+		if ( ! eparams->create_nodes )
+			return 0;
 		target_index = eparams->net->num_nodes;
 		if (( err = add_pNode( eparams->net, target, &target_pnode ) ))
 			return err;
@@ -198,9 +207,104 @@ int connect_pNet( BinLeaf *leaf, struct Extraction_Params *eparams ) {
 	return err;
 }
 
+int build_network( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int num_inputs, pNode *inputs, int num_outputs, pNode *outputs ) {
+	int block, index, err=0;
+	unsigned int i;
 
+	// Set up static input and output nodes
+	pNode *tmp;
+	for ( i=0; i<num_inputs; i++ ) {
+		if (( err = add_pNode( net, inputs[i].x, tmp ) ))
+			return err;
+		if ( inputs[i].n )
+			memcpy( tmp->n, inputs[i].n, sizeof *tmp->n );
+	}
+	net->num_inputs = num_inputs;
+	for ( i=0; i<num_outputs; i++ ) {
+		if (( err = add_pNode( net, outputs[i].x, tmp ) ))
+			return err;
+		if ( outputs[i].n )
+			memcpy( tmp->n, outputs[i].n, sizeof *tmp->n );
+	}
+	net->num_outputs = num_outputs;
 
+	struct Extraction_Params eparams = {0};
+	eparams->params = params;
+	eparams->cppn = cppn;
+	eparams->net = net;
 
+	// Extract links from input to first hidden layer
+	eparams->outgoing = 1;
+	eparams->create_nodes = 1;
+	block = -1;
+	for ( i=0; i<num_inputs; i++ ) {
+		index = i % BLOCKSIZE_NODES;
+		if ( ! index )
+			block++;
+		memcpy( eparams->ref, net->p_nodes[block][index].x, DIMENSIONS*sizeof *eparams->ref );
+		if (( err = extract_links( eparams ) ))
+			return err;
+	}
+
+	// Extract deeper layers
+	int depth;
+	unsigned int start_level=num_inputs+num_outputs, end_level;
+	block = (num_inputs+num_outputs-1) / BLOCKSIZE_NODES;
+	for ( depth=1; depth < params->max_network_depth; depth++ ) {
+		end_level = net->num_nodes;
+		for ( i=start_level; i<end_level; i++ ) {
+			index = i % BLOCKSIZE_NODES;
+			if ( ! index )
+				block++;
+			memcpy( eparams->ref, net->p_nodes[block][index].x, DIMENSIONS*sizeof *eparams->ref );
+			if (( err = extract_links( eparams ) ))
+				return err;
+		}
+		start_level = end_level;
+	}
+
+	// Extract links to the output layer
+	eparams->outgoing = 0;
+	eparams->create_nodes = 0;
+	block = (num_inputs-1) / BLOCKSIZE_NODES;
+	for ( i=num_inputs; i<num_inputs+num_outputs; i++ ) {
+		index = i % BLOCKSIZE_NODES;
+		if ( ! index )
+			block++;
+		memcpy( eparams->ref, net->p_nodes[block][index].x, DIMENSIONS*sizeof *eparams->ref );
+		if (( err = extract_links( eparams ) ))
+			return err;
+
+		// Mark everything that connects to this output node
+		if ( ! (params->flags & EFL_RETAIN_DEAD_ENDS) ) {
+			backtrack( net, &net->p_nodes[block][index] );
+		}
+	}
+
+	// Prune all the frills not connected to an output. (Yes, this may include inputs!)
+	block = -1;
+	// Todo, require slight rewrite: Don't refer to eNet/eLinks/eNodes before pruning; store CPPN activation in pLink
+	// After pruning, compress pNet memory structure, and only then call eNet formation code.
+}
+
+void backtrack( pNetwork *net, pNode *n ) {
+	unsigned int l_i;
+	int l_index, l_block=-1;
+	pLink *l;
+	for ( l_i = 0; l_i < net->num_links; l_i++ ) {
+		l_index = l_i % BLOCKSIZE_LINKS;
+		if ( ! l_index )
+			l_block++;
+		l = &net->p_links[l_block][l_index];
+		if ( l->to == n ) {
+			l->track = 1;
+			if ( ! l->from->track ) {
+				l->from->track = 1;
+				backtrack( net, l->from );
+			}
+		}
+	}
+}
 
 
 
