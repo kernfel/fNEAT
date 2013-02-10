@@ -7,14 +7,6 @@
 #include "network.h"
 #include "cppn.h"
 
-#ifndef BLOCKSIZE_NODES
-#define BLOCKSIZE_NODES 256
-#endif
-
-#ifndef BLOCKSIZE_LINKS
-#define BLOCKSIZE_LINKS 1024
-#endif
-
 
 int create_pNetwork( pNetwork *n ) {
 	int err=0;
@@ -58,7 +50,13 @@ void delete_pNetwork( pNetwork *n ) {
 	free( n->p_links );
 }
 
-int add_pNode( pNetwork *n, double x[DIMENSIONS], pNode **result ) {
+void reset_pNetwork( pNetwork *net ) {
+	// No further processing is needed, as the block allocations remain intact
+	net->num_nodes = 0;
+	net->num_links = 0;
+}
+
+int add_pNode( pNetwork *n, const double x[DIMENSIONS], pNode **result ) {
 	int err=0;
 
 	// If need be, allocate a new block
@@ -202,7 +200,7 @@ int connect_pNet( BinLeaf *leaf, struct Extraction_Params *eparams ) {
 	return err;
 }
 
-int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int num_inputs, pNode *inputs, int num_outputs, pNode *outputs ) {
+int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int num_inputs, const pNode *inputs, int num_outputs, const pNode *outputs ) {
 	int block, index, err=0;
 	unsigned int i;
 

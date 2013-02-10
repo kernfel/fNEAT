@@ -53,8 +53,8 @@ int build_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 	}
 
 	// Recurse
-	if ( p->level < eparams->params->min_resolution \
-	 || ( p->level < eparams->params->max_resolution && get_binleaf_variance(p, eparams->params) > eparams->params->variance_threshold ) ) {
+	if ( p->level < eparams->params->min_resolution-1 \
+	 || ( p->level < eparams->params->max_resolution-1 && get_binleaf_variance(p, eparams->params) > eparams->params->variance_threshold ) ) {
 		for ( i=0; i<CLUSTERSIZE; i++ ) {
 			if (( err = build_tree( &p->c[i], eparams ) ))
 				return err;
@@ -73,8 +73,9 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 	// (b) c were at highest resolution
 	//	=> check variance over all c to decide whether to express them or not
 	// Since variance is not calculated recursively, this process may leave a few fragments from min_resolution.
-	if ( p->c[0].c \
-	 || ( p->level == eparams->params->max_resolution && get_binleaf_variance(p, eparams->params) > eparams->params->variance_threshold ) ) {
+	if ( p->c \
+	 && ( p->c[0].c \
+	   || ( p->level == eparams->params->max_resolution-1 && get_binleaf_variance(p, eparams->params) > eparams->params->variance_threshold ) ) ) {
 		for ( i=0; i<CLUSTERSIZE; i++ ) {
 			if (( err = extract_tree( &p->c[i], eparams ) ))
 				return err;

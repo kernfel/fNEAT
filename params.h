@@ -27,7 +27,7 @@
 
 // HyperNEAT's substrate space dimensionality
 #ifndef DIMENSIONS
-#define DIMENSIONS 1
+#define DIMENSIONS 2
 #endif
 
 // Number of output values in the CPPN
@@ -49,7 +49,7 @@ struct NEAT_Params {
 	unsigned int flags;
 
 // Parameters related to network extraction
-	int	min_resolution,		// Minimal resolution of the substrate space to explore
+	int	min_resolution,		// Minimum resolution (i.e. number of binary subdivisions) of the substrate space to explore
 		max_resolution,
 		max_network_depth;	// Number of hidden layers to explore in the substrate space
 

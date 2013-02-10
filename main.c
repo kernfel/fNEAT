@@ -5,21 +5,30 @@
 #include <math.h>
 
 #include "params.h"
+#include "util.h"
 
 #include "cppn.h"
 #include "neat.h"
-
-void dump_CPPN( CPPN *net );
+#include "network.h"
 
 void get_params( struct NEAT_Params *params ) {
-	params->flags = CFL_USE_BIAS | CFL_NO_DISTCALC_NORM;
+	params->flags = CFL_USE_BIAS | CFL_USE_DIST | CFL_ALLOW_RECURRENCE;
+
+	params->min_resolution = 2;
+	params->max_resolution = 4;
+	params->max_network_depth = 2;
+
+	params->variance_threshold = 0.2;
+	params->output_variance_weight[0] = 1;
+	params->band_threshold = 0.2;
+	params->output_bandpruning_weight[0] = 1;
 
 	params->output_funcs[0] = CF_SIGMOID;
 	params->initially_linked_outputs[0] = 1;
 
 	params->allowed_funcs = NULL;
 	params->num_allowed_funcs = 0;
-	params->num_activations = 10;
+	params->num_activations = 25;
 
 	params->population_size = 100;
 	params->extinction_threshold = 2;
@@ -55,292 +64,106 @@ void get_params( struct NEAT_Params *params ) {
 	params->species_counter = 0;
 }
 
-void eval_xor( Individual *dude, struct NEAT_Params *params, int record, int verbose ) {
-	double test[4][3] = {
-		{0.0, 0.0, 0.0},
-		{0.0, 1.0, 1.0},
-		{1.0, 0.0, 1.0},
-		{1.0, 1.0, 0.0}
-	};
-	double d, result[4]={0.0};
-	int j;
-	if ( record )
-		dude->score = 4.0;
-	for ( j=0; j<4; j++ ) {
-		read_CPPN( &dude->genotype, params, test[j], test[j]+1, &result[j] );
-		d = result[j]-test[j][2];
-		if ( record )
-			dude->score -= fabs(d);
-		if ( verbose )
-			printf( "%1.0f^%1.0f->%.2f, (%+.2f off)\n", test[j][0], test[j][1], result[j], d );
+void m_get_spread( pNode *in, int n, double x ) {
+	int i;
+	for ( i=1; i<=n; i++ ) {
+		in[i-1].x[0] = x;
+		in[i-1].x[1] = (-0.5) + i/(1.0+n);
 	}
-	if ( record )
-		dude->score *= dude->score;
 }
 
-void xor() {
-	struct NEAT_Params params;
-	Population pop;
-	CPPN seed;
-	int err=0;
-	
-	get_params( &params );
-	params.allowed_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
-	params.num_allowed_funcs = 1;
-	params.population_size = 150;
+void list_nodes_in_sector( pNetwork *net, double xmin, double xmax, double ymin, double ymax ) {
+	unsigned int i;
+	int block=-1, index;
+	for ( i=0; i<net->num_nodes; i++ ) {
+		index = i % BLOCKSIZE_NODES;
+		if ( ! index )
+			block++;
+		pNode *n = &net->p_nodes[block][index];
+		if ( n->x[0] > xmin && n->x[0] < xmax && n->x[1] > ymin && n->x[1] < ymax )
+			printf( "%4d @ %2d, %2d\n", i, (int)(n->x[0]*32), (int)(n->x[1]*32) );
+	}
+}
 
-	if (( err = create_CPPN( &seed, &params ) ))
+void print_node_matrix( pNetwork *net ) {
+	unsigned char mat[32][32];
+	unsigned int i, j;
+	int block=0, index;
+	for ( i=0; i<32; i++ )
+		for ( j=0; j<32; j++ )
+			mat[i][j] = 0;
+	for ( i=net->num_inputs+net->num_outputs; i<net->num_nodes; i++ ) {
+		index = i % BLOCKSIZE_NODES;
+		if ( ! index )
+			block++;
+		pNode *n = &net->p_nodes[block][index];
+		mat[(int)(n->x[0]*32)+16][(int)(n->x[1]*32)+16] += 1;
+	}
+	for ( i=0; i<32; i++ ) {
+		for ( j=0; j<32; j++ )
+			if ( mat[i][j] )
+				putchar('*');
+			else
+				putchar('o');
+		putchar('-');
+		putchar('\n');
+	}
+}
+
+void maxTheNodeCount() {
+	int err=0;
+
+	struct NEAT_Params params;
+	get_params( &params );
+	params.allowed_funcs = (enum CPPNFunc[]){CF_GAUSS, CF_SIGMOID, CF_SINE, CF_LINEAR};
+	params.num_allowed_funcs = 4;
+
+	CPPN cppn;
+	if (( err = create_CPPN( &cppn, &params ) ))
 		exit(err);
 
-	int generation, i, j, winner, run, n_solved=0;
-	int solved_in[100], nodes[100];
-	for ( run=0; run<100; run++ ) {
-	
-		params.speciation_threshold = 3.0;
-	
-		if (( err = create_Population( &pop, &params, &seed ) ))
-			exit(err);
-		randomise_population( &pop, &params );
-		
-		for ( generation=0; generation < 200; generation++ ) {
-			double best_score = 0.0;
-			for ( i=0; i<pop.num_members; i++ ) {
-				for ( j=0; j<pop.num_species; j++ )
-					if ( pop.members[i].species_id == pop.species[j].id )
-						break;
-				eval_xor( &pop.members[i], &params, 1, 0 );
-				if ( pop.members[i].score > best_score ) {
-					winner = i;
-					best_score = pop.members[i].score;
-				}
-			}
-
-			if ( best_score > 15.5 ) {
-				solved_in[n_solved] = generation;
-				nodes[n_solved] = pop.members[winner].genotype.num_hidden;
-				n_solved++;
-				//printf( "Run %2d, %3d generations to a solution with %d hidden nodes\n", run+1, generation+1, pop.members[winner].genotype.num_hidden );
-				winner = -1;
-				break;
-			}
-
-			if (( err = epoch( &pop, &params ) )) {
-				winner = -2;
-				if ( err == E_NO_OFFSPRING )
-					break;
-				else
-					exit(err);
-			}
-		}
-
-		delete_Population( &pop );
-		if ( winner == -1 )
-			putchar('#');
-		else if ( winner == -2 )
-			putchar('@');
-		else
-			putchar('-');
-		fflush(stdout);
-	}
-	
-	int total_length=0, total_nodes=0;
-	for ( i=0; i<n_solved; i++ ) {
-		total_length += solved_in[i];
-		total_nodes += nodes[i];
-	}
-	double mean_length=(double)total_length/n_solved, mean_nodes=(double)total_nodes/n_solved;
-	double ss_length=0, ss_nodes=0;
-	for ( i=0; i<n_solved; i++ ) {
-		double a = solved_in[i] - mean_length, b = nodes[i] - mean_nodes;
-		ss_length += a*a;
-		ss_nodes += b*b;
-	}
-	printf( "\nAverage runtime: %.2f (sd=%.2f) generations | Average node count: %.2f (sd=%.2f) hidden | %d fails\n",
-		mean_length,
-		sqrt( ss_length / n_solved ),
-		mean_nodes,
-		sqrt( ss_nodes / n_solved ),
-		100-n_solved
-	);
-
-	delete_CPPN(&seed);
-}
-
-void functest() {
-	struct NEAT_Params params;
 	Population pop;
-	CPPN seed;
-	int err=0;
-	
-	get_params( &params );
-	params.allowed_funcs = (enum CPPNFunc[]){ CF_SIGMOID };
-	params.num_allowed_funcs = 1;
-	params.population_size = 150;
-	
-	if (( err = create_CPPN( &seed, &params ) )
-	 || ( err = create_Population( &pop, &params, &seed ) ))
+	if (( err = create_Population( &pop, &params, &cppn ) ))
 		exit(err);
 	randomise_population( &pop, &params );
-	delete_CPPN(&seed);
-	
-	
-	int generation=0, i, j, winner;
-	while (++generation) {
-		printf( "\n-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*\nGeneration %d -- %d species present: ", generation, pop.num_species );
-		for ( i=0; i<pop.num_species; i++ ) {
-			printf( "%d of #%d", pop.species[i].size, pop.species[i].id );
-			if ( i<pop.num_species-1 )
-				printf( ", " );
-		}
-		printf( "\n" );
-		double best_score = 0.0;
-		for ( i=0; i<pop.num_members; i++ ) {
-			for ( j=0; j<pop.num_species; j++ )
-				if ( pop.members[i].species_id == pop.species[j].id )
-					break;
-/*			printf( "\nIndividual #%d (Species #%d) topology:\n", i+1, pop.species[j].id );*/
-/*			dump_CPPN( &pop.members[i].genotype );*/
-/*			printf( "Test results as follows:\n" );*/
-			eval_xor( &pop.members[i], &params, 1, 0 );
-			if ( pop.members[i].score > best_score ) {
-				winner = i;
-				best_score = pop.members[i].score;
-			}
-/*			printf( "Total score: %.2f/4\n", pop.members[i].score );*/
-/*			while(!getchar());*/
-		}
-		
-		for ( j=0; j<pop.num_species; j++ )
-			if ( pop.members[winner].species_id == pop.species[j].id )
-				break;
-		printf( "The winner belongs to species #%d (idx %d), here it is:\n", pop.species[j].id, j );
-		dump_CPPN( &pop.members[winner].genotype );
-		eval_xor( &pop.members[winner], &params, 0, 1 );
-		printf( "Score: %.2f\n", pop.members[winner].score );
-		
-		char foo[10];
-		while(1) {
-			if ( ! fgets( foo, 9, stdin ) )
-				continue;
-			if ( foo[0] == '\n' )
-				break;
-			char action;
-			int index;
-			sscanf( foo, "%c %d", &action, &index );
-			if ( action == 's' ) {
-				if ( index >= pop.num_species )
-					continue;
-				int found=0;
-				for ( i=0; i<pop.num_species; i++ )
-					if ( pop.species[i].id == index ) {
-						found = 1;
-						index = i;
-						break;
-					}
-				if ( ! found )
-					continue;
-				printf( "Species #%2d (idx %2d), %3d members:\n", pop.species[index].id, index, pop.species[index].size );
-				for ( i=0; i<pop.num_members; i++ ) {
-					if ( pop.species[index].id == pop.members[i].species_id ) {
-						printf( "\nMember #%3d, score: %.2f\n", i, pop.members[i].score );
-						dump_CPPN( &pop.members[i].genotype );
-					}
-				}
-			} else if ( action == 'i' ) {
-				if ( index >= pop.num_members )
-					continue;
-				printf( "Member #%3d, score: %.2f\n", index, pop.members[index].score );
-				dump_CPPN( &pop.members[index].genotype );
-			}
-		}
 
-		if (( err = epoch( &pop, &params ) ))
-			exit(err);
-	}
-}
+	pNetwork *net = malloc( sizeof(pNetwork) );
+	if (( err = create_pNetwork( net ) ))
+		exit(err);
 
-void print_link_info( CPPN_Link *l ) {
-	printf(
-		"[%04d] %2d --%c %2d  (%+.2f)",
-		l->innov_id,
-		l->from,
-		l->is_disabled ? 'x' : '>',
-		l->to,
-		l->weight
-	);
-}
+	int num_inputs=5, num_outputs=3;
+	pNode inputs[num_inputs], outputs[num_outputs];
+	m_get_spread( inputs, num_inputs, -0.5 );
+	m_get_spread( outputs, num_outputs, 0.5 );
 
-void dump_CPPN( CPPN *net ) {
-	int i;
-	for ( i=0; i<net->num_links; i++ ) {
-		print_link_info( &net->links[i] );
-		putchar('\n');
-	}
-}
-
-void juxtapose_CPPN( CPPN *net1, CPPN *net2 ) {
-	int i=0,j=0;
-	while ( i<net1->num_links && j<net2->num_links ) {
-		if ( net1->links[i].innov_id == net2->links[j].innov_id ) {
-			print_link_info( &net1->links[i] );
-			putchar('\t');
-			print_link_info( &net2->links[j] );
-			putchar('\n');
-			i++;
-			j++;
-		} else if ( net1->links[i].innov_id > net2->links[j].innov_id ) {
-			printf( "\t\t\t\t" );
-			print_link_info( &net2->links[j] );
-			putchar('\n');
-			j++;
-		} else {
-			print_link_info( &net1->links[i] );
-			putchar('\n');
-			i++;
+	int i, gen;
+	for ( gen=0; gen<100; gen++ ) {
+		for ( i=0; i<100; i++ ) {
+			reset_pNetwork( net );
+			if (( err = build_pNetwork( net, &pop.members[i].genotype, &params, num_inputs, inputs, num_outputs, outputs ) ))
+				exit(err);
+			pop.members[i].score = net->num_links;
+			if ( !(i%10) )
+				putchar('\n');
+			printf( "%9d ", net->num_links );
+			fflush(stdout);
+/*			if ( net->num_nodes == 348 ) {*/
+/*				printf( "\n.....................................\n" );*/
+/*				//list_nodes_in_sector( net, 0, 0.5, 0, 0.5 );*/
+/*				print_node_matrix( net );*/
+/*				printf( ".....................................\n" );*/
+/*				while(!getchar());*/
+/*			}*/
 		}
+		printf( "\n------------------------- %d ", gen );
+		epoch( &pop, &params );
+		printf( "-------------------------" );
 	}
-	for ( ; i<net1->num_links; i++ ) {
-		print_link_info( &net1->links[i] );
-		putchar('\n');
-	}
-	for ( ; j<net2->num_links; j++ ) {
-		printf( "\t\t\t\t" );
-		print_link_info( &net2->links[j] );
-		putchar('\n');
-	}
-}
-
-void hillclimbing() {
-	struct NEAT_Params params;
-	CPPN net1, net2;
-	char c=' ';
-	
-	get_params( &params );
-	params.allowed_funcs = (enum CPPNFunc[]){CF_SIGMOID};
-	params.num_allowed_funcs = 1;
-	
-	create_CPPN( &net1, &params );
-	clone_CPPN( &net2, &net1 );
-	randomise_CPPN_weights( &net1, &params );
-	randomise_CPPN_weights( &net2, &params );
-	do {
-		if ( c == '1' ) {
-			crossover_CPPN( &net1, &net2, &params );
-		} else if ( c == '2' ) {
-			crossover_CPPN( &net2, &net1, &params );
-		} else {
-			mutate_CPPN( &net1, &params, 0, 0 );
-			mutate_CPPN( &net2, &params, 0, 0 );
-		}
-		juxtapose_CPPN( &net1, &net2 );
-		printf( "-- 1 to xover left with right, 2 to xover right with left, any key to mutate -- compatibility is %.2f\n", \
-			get_genetic_distance( &net1, &net2, &params ) );
-	} while (( c=getchar() ));
 }
 
 int main( int argc, char **argv ) {
 	srand(time(0));
-	xor();
+	maxTheNodeCount();
 	return 0;
 }
 

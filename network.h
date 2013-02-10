@@ -5,6 +5,14 @@
 #include "extract.h"
 #include "cppn.h"
 
+#ifndef BLOCKSIZE_NODES
+#define BLOCKSIZE_NODES 256
+#endif
+
+#ifndef BLOCKSIZE_LINKS
+#define BLOCKSIZE_LINKS 1024
+#endif
+
 // *** Full network structure for extraction (p=positional)
 typedef struct pNode {
 	double x[DIMENSIONS];
@@ -40,8 +48,10 @@ void delete_pNetwork( pNetwork *n );
 // Both input and output may lie within or outside the substrate space.
 // The resulting pNetwork may contain references to links and nodes that aren't implied in input-to-output structure (::used = 0).
 // The function compiling the network for evaluation will have to deal with these according to its own paradigm.
-// Note, a pNetwork can be safely reused by simply resetting its num_nodes and num_links to 0, then building again with new parameters.
-int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int num_inputs, pNode *inputs, int num_outputs, pNode *outputs );
+int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int num_inputs, const pNode *inputs, int num_outputs, const pNode *outputs );
+
+// Lazily prepare the pNetwork to receive a new build
+void reset_pNetwork( pNetwork *net );
 
 // *** Internal
 
@@ -50,7 +60,7 @@ int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int n
 // that the connection is definitely new, and only node duplicity is considered.
 int connect_pNet( BinLeaf *leaf, struct Extraction_Params *eparams );
 
-int add_pNode( pNetwork *n, double x[DIMENSIONS], pNode **result );
+int add_pNode( pNetwork *n, const double x[DIMENSIONS], pNode **result );
 int add_pLink( pNetwork *n, pNode *from, pNode *to, pLink **result );
 
 // Recursively find all nodes that connect to n, marking them and the implied links as used.

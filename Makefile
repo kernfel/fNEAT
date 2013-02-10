@@ -1,13 +1,12 @@
-OBJ = main.o cppn.o neat.o params.o util.o
-DEPS = util.h params.h
+OBJ = main.o cppn.o neat.o params.o util.o extract.o network.o
 
 CFLAGS = -Wall
-LFLAGS = -lm
+LDFLAGS = -lm
 
 all: main
 
-main: $(OBJ) $(DEPS)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LFLAGS)
+main: $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
 debug: CFLAGS += -g
 debug: main
@@ -15,8 +14,6 @@ debug: main
 memcheck: valgrind
 valgrind: CFLAGS += -O0
 valgrind: debug
-
-neat.o: cppn.h
 
 .PHONY: clean
 clean:
