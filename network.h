@@ -14,23 +14,29 @@
 #endif
 
 // *** Full network structure for extraction (p=positional)
+#ifndef _PNODE_DEF
+#define _PNODE_DEF
 typedef struct pNode {
 	double x[DIMENSIONS];
 	unsigned char used;
 } pNode;
+#endif
 
+#ifndef _PLINK_DEF
+#define _PLINK_DEF
 typedef struct pLink {
 	pNode *from, *to;
 	double r[N_OUTPUTS];
 	unsigned char used;
 } pLink;
+#endif
 
 typedef struct pNetwork {
-	unsigned int num_nodes, num_node_blocks;
+	unsigned int num_nodes, num_used_nodes, num_node_blocks;
 	pNode **p_nodes;
 	int num_inputs, num_outputs;
 	
-	unsigned int num_links, num_link_blocks;
+	unsigned int num_links, num_used_links, num_link_blocks;
 	pLink **p_links;
 } pNetwork;
 

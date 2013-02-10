@@ -1,31 +1,42 @@
 #ifndef _NETWORK_STATIC_H
 #define _NETWORK_STATIC_H
 
+#define DIMENSIONS 2
 #define N_OUTPUTS 1
 #define BLOCKSIZE_NODES 256
 #define BLOCKSIZE_LINKS 1024
 
-// *** Minimal network structure, for evaluation
+#define _PNODE_DEF
+typedef struct pNode {
+	double x[DIMENSIONS];
+	unsigned char used;
+
+	// Index of the relevant eNode in eNetwork::nodes
+	unsigned int index;
+} pNode;
+
+// *** Minimal network structure for serial evaluation
 typedef struct eNode {
 	double a;
+	int num_inputs;
 } eNode;
 
 typedef struct eLink {
-	unsigned int from, to;
 	double w;
+	eNode *from;
 } eLink;
 
 typedef struct eNetwork {
 	unsigned int num_nodes;
 	eNode *nodes;
+
+	int num_inputs, num_outputs;
+	eNode **inputs, **outputs;
 	
 	unsigned int num_links;
 	eLink *links;
 } eNetwork;
 
-
-// *** Prototype as declared in network.h -- Reminder
-// int connect_eNet( pNode *source_pnode, pNode *target_pnode, pLink *plink, struct BinLeaf *leaf, struct Extraction_Params *eparams );
 
 #endif
 

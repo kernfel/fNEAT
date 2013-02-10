@@ -53,7 +53,9 @@ void delete_pNetwork( pNetwork *n ) {
 void reset_pNetwork( pNetwork *net ) {
 	// No further processing is needed, as the block allocations remain intact
 	net->num_nodes = 0;
+	net->num_used_nodes = 0;
 	net->num_links = 0;
+	net->num_used_links = 0;
 }
 
 int add_pNode( pNetwork *n, const double x[DIMENSIONS], pNode **result ) {
@@ -277,6 +279,7 @@ int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int n
 
 void backtrack( pNetwork *net, pNode *n ) {
 	n->used = 1;
+	net->num_used_nodes++;
 	unsigned int i;
 	int index, block=-1;
 	pLink *l;
@@ -287,6 +290,7 @@ void backtrack( pNetwork *net, pNode *n ) {
 		l = &net->p_links[block][index];
 		if ( l->to == n ) {
 			l->used = 1;
+			net->num_used_links++;
 			if ( ! l->from->used ) {
 				backtrack( net, l->from );
 			}
