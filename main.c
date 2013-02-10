@@ -22,6 +22,7 @@ void get_params( struct NEAT_Params *params ) {
 	params->output_variance_weight[0] = 1;
 	params->band_threshold = 0.2;
 	params->output_bandpruning_weight[0] = 1;
+	params->expression_thresholds[0] = 0.2;
 
 	params->output_funcs[0] = CF_SIGMOID;
 	params->initially_linked_outputs[0] = 1;

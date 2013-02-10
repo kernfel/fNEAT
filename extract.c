@@ -81,13 +81,17 @@ int extract_tree( BinLeaf *p, struct Extraction_Params *eparams ) {
 				return err;
 		}
 	} else {
+		// Check expression level
+		for ( i=0; i<N_OUTPUTS; i++ )
+			if ( fabs(p->r[i]) < eparams->params->expression_thresholds[i] )
+				return err;
+
 		// Band pruning: See whether I'm in a slope of some sort
 		double w = 1.0 / (1<<p->level);
 		double dband=0;
 		for ( i=0; i<DIMENSIONS; i++ ) {
 			double neighbour[DIMENSIONS], left[N_OUTPUTS], right[N_OUTPUTS];
-			for ( j=0; j<DIMENSIONS; j++ )
-				neighbour[j] = p->x[j];
+			memcpy( neighbour, p->x, DIMENSIONS*sizeof *neighbour );
 
 			// Left neighbour
 			neighbour[i] = p->x[i] - w;

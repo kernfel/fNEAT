@@ -56,9 +56,12 @@ struct NEAT_Params {
 	double	variance_threshold,	// Min variance among the children (quadrants etc) of a given spatial region required to continue exploration
 		output_variance_weight[N_OUTPUTS],	// Relative weights of the CPPN outputs for variance calculation and band pruning
 			// Note, the variance threshold is checked against the weighted mean of variances for each CPPN output value.
+
 		band_threshold,		// Min gradient of a quadrant relative to its neighbours required to warrant link expression
 			// Note, the band threshold is checked against the steepest gradient and disregards flatter axes.
-		output_bandpruning_weight[N_OUTPUTS];
+		output_bandpruning_weight[N_OUTPUTS],
+
+		expression_thresholds[N_OUTPUTS];	// Min absolute activation of the given CPPN output to warrant link expression
 
 // Parameters related to HyperNEAT function
 	enum CPPNFunc output_funcs[N_OUTPUTS];	// Output activation functions
