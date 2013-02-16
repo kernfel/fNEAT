@@ -5,7 +5,7 @@ IMPL = $(addsuffix .o,$(addprefix network-,$(i)))
 CFLAGS = -Wall
 LDFLAGS = -lm
 
-ifdef IMPL
+ifdef i
 CFLAGS += -include $(IMPL:.o=.h)
 endif
 
