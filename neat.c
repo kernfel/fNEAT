@@ -100,9 +100,10 @@ int epoch( Population *pop, struct NEAT_Params *params ) {
 	}
 
 cleanup:
-	for ( i=0; i<num_reps; i++ )
-		if ( reps[i].species_id )
-			delete_CPPN( &reps[i].genotype );
+	if ( err != E_NO_OFFSPRING )
+		for ( i=0; i<num_reps; i++ )
+			if ( reps[i].species_id )
+				delete_CPPN( &reps[i].genotype );
 
 	return err;
 }
