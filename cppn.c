@@ -376,8 +376,8 @@ double CPPN_func( enum CPPNFunc fn, double x ) {
 		case CF_GAUSS:
 			return exp(-0.5*x*x)*M_2_SQRTPI*M_SQRT1_2*0.5; // sigma=1, mu=0
 		case CF_SIGMOID:
-			return 1.0/(1.0+exp(-4.9*x));
-			//return tanh(x);
+			//return 1.0/(1.0+exp(-4.9*x)); // [0,1]
+			return tanh(x); // [-1,1]
 		case CF_SINE:
 			return sin(x);
 		case CF_STEP:

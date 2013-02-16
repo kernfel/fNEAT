@@ -1,3 +1,5 @@
+#include <math.h>
+
 #include "params.h"
 #include "util.h"
 
@@ -37,7 +39,7 @@ void delete_eNetwork( eNetwork *e ) {
 	e->num_links = 0;
 }
 
-int build_eNetwork( pNetwork *p, eNetwork *e, struct NEAT_Params *params ) {
+int build_eNetwork( eNetwork *e, pNetwork *p, struct NEAT_Params *params ) {
 	int err=0;
 
 	if (( err = Realloc( e->nodes, p->num_used_nodes*sizeof *e->nodes ) )
@@ -117,5 +119,41 @@ int build_eNetwork( pNetwork *p, eNetwork *e, struct NEAT_Params *params ) {
 	}
 
 	return err;
+}
+
+void activate( eNetwork *net, double *inputs, double *outputs ) {
+	unsigned int i, j=0;
+	eNode *n = net->nodes;
+	eLink *l = net->links;
+
+	// Load input values
+	for ( i=0; i<net->num_inputs; i++ ) {
+		if ( net->inputs[i] ) {
+			net->inputs[i]->a = inputs[i];
+			n++;
+			j++;
+			l += net->inputs[i]->num_inputs;
+		}
+	}
+
+	// Propagate
+	for ( i=j; i<net->num_nodes; i++ ) {
+		double sum=0;
+		for ( j=0; j<n->num_inputs; j++ ) {
+			sum += l->w * l->from->a;
+			l++;
+		}
+		n->a = tanh(sum);
+		n++;
+	}
+
+	// Load output values
+	for ( i=0; i<net->num_outputs; i++ ) {
+		if ( net->outputs[i] ) {
+			outputs[i] = net->outputs[i]->a;
+		} else {
+			outputs[i] = 0;
+		}
+	}
 }
 

@@ -15,6 +15,12 @@ typedef struct pNode {
 	unsigned int index;
 } pNode;
 
+// Forward declarations
+struct pLink;
+struct pNetwork;
+struct NEAT_Params;
+
+
 // *** Minimal network structure for serial evaluation
 typedef struct eNode {
 	double a;
@@ -37,6 +43,22 @@ typedef struct eNetwork {
 	eLink *links;
 } eNetwork;
 
+
+// ** Constructor
+int create_eNetwork( eNetwork *e );
+
+
+// ** Destructor
+void delete_eNetwork( eNetwork *e );
+
+
+// ** Public
+
+// Initialise eNet e for evaluation, using the structure provided by a pNetwork.
+int build_eNetwork( eNetwork *e, struct pNetwork *p, struct NEAT_Params *params );
+
+// Run one activation cycle with the provided inputs
+void activate( eNetwork *net, double *inputs, double *outputs );
 
 #endif
 
