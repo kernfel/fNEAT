@@ -78,13 +78,8 @@ int build_eNetwork( eNetwork *e, pNetwork *p, struct NEAT_Params *params ) {
 				e->outputs[i-e->num_inputs] = 0;
 		}
 
-		if ( n->used ) {
+		if ( n->used )
 			n->index = node_iter++;
-			if ( i < p->num_inputs )
-				e->num_inputs++;
-			else if ( i < p->num_inputs+p->num_outputs )
-				e->num_outputs++;
-		}
 	}
 	
 	// Group links by target node

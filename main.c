@@ -10,8 +10,11 @@
 #include "cppn.h"
 #include "neat.h"
 #include "network.h"
+#include "robot-simplistic.h"
 
-void get_params( struct NEAT_Params *params ) {
+#define NUM_BEHAVIOUR_VARS 2
+
+void get_neat_params( struct NEAT_Params *params ) {
 	params->flags = CFL_USE_BIAS | CFL_USE_DIST | CFL_ALLOW_RECURRENCE;
 
 	params->min_resolution = 2;
@@ -65,6 +68,41 @@ void get_params( struct NEAT_Params *params ) {
 	params->species_counter = 0;
 }
 
+void get_robot_params( struct Robot_Params *params ) {
+	params->radius = 1;
+	
+	params->motor_sensitivity = 0.01;
+	params->motor_threshold = 0.1;
+	params->turn_sensitivity = 0.01;
+	params->turn_threshold = 0.1;
+	
+	params->num_dist_sensors = 0;
+	params->dist_sensor_length = 1;
+	params->dist_sensor_pos = NULL;
+}
+
+void run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, struct Robot_Params *r_params, double *behaviour ) {
+	eNetwork controller;
+	create_eNetwork( &controller );
+	build_eNetwork( &controller, controller_structure, n_params );
+	
+	Room room = { 4, 100 };
+	Robot bot = { room.x/2, room.y/2, 0 };
+	double sensors[NUM_SENSORS+1], motors[NUM_MOTORS];
+	sensors[NUM_SENSORS] = 1;
+	unsigned int i;
+	for ( i=0; i<500; i++ ) {
+		get_sensor_readings_in_room( &bot, &room, r_params, sensors );
+		activate( &controller, sensors, motors );
+		move_robot_in_room( &bot, &room, r_params, motors );
+	}
+
+	delete_eNetwork( &controller );
+
+	behaviour[0] = bot.x - room.x/2;
+	behaviour[1] = bot.y - room.y/2;
+}
+
 void m_get_spread( pNode *in, int n, double x ) {
 	int i;
 	for ( i=1; i<=n; i++ ) {
@@ -73,51 +111,18 @@ void m_get_spread( pNode *in, int n, double x ) {
 	}
 }
 
-void list_nodes_in_sector( pNetwork *net, double xmin, double xmax, double ymin, double ymax ) {
-	unsigned int i;
-	int block=-1, index;
-	for ( i=0; i<net->num_nodes; i++ ) {
-		index = i % BLOCKSIZE_NODES;
-		if ( ! index )
-			block++;
-		pNode *n = &net->p_nodes[block][index];
-		if ( n->x[0] > xmin && n->x[0] < xmax && n->x[1] > ymin && n->x[1] < ymax )
-			printf( "%4d @ %2d, %2d\n", i, (int)(n->x[0]*32), (int)(n->x[1]*32) );
-	}
-}
-
-void print_node_matrix( pNetwork *net ) {
-	unsigned char mat[32][32];
-	unsigned int i, j;
-	int block=0, index;
-	for ( i=0; i<32; i++ )
-		for ( j=0; j<32; j++ )
-			mat[i][j] = 0;
-	for ( i=net->num_inputs+net->num_outputs; i<net->num_nodes; i++ ) {
-		index = i % BLOCKSIZE_NODES;
-		if ( ! index )
-			block++;
-		pNode *n = &net->p_nodes[block][index];
-		mat[(int)(n->x[0]*32)+16][(int)(n->x[1]*32)+16] += 1;
-	}
-	for ( i=0; i<32; i++ ) {
-		for ( j=0; j<32; j++ )
-			if ( mat[i][j] )
-				putchar('*');
-			else
-				putchar('o');
-		putchar('-');
-		putchar('\n');
-	}
-}
-
-void maxTheNodeCount() {
+void bots_in_a_box() {
 	int err=0;
 
 	struct NEAT_Params params;
-	get_params( &params );
+	get_neat_params( &params );
 	params.allowed_funcs = (enum CPPNFunc[]){CF_GAUSS, CF_SIGMOID, CF_SINE, CF_LINEAR};
 	params.num_allowed_funcs = 4;
+
+	struct Robot_Params bot_params;
+	get_robot_params( &bot_params );
+	bot_params.num_dist_sensors = 5;
+	bot_params.dist_sensor_pos = (double[]){-M_PI/2, -M_PI/4, 0, M_PI/4, M_PI/2};
 
 	CPPN cppn;
 	if (( err = create_CPPN( &cppn, &params ) ))
@@ -128,33 +133,35 @@ void maxTheNodeCount() {
 		exit(err);
 	randomise_population( &pop, &params );
 
-	pNetwork *net = malloc( sizeof(pNetwork) );
-	if (( err = create_pNetwork( net ) ))
+	pNetwork net;
+	if (( err = create_pNetwork( &net ) ))
 		exit(err);
 
-	int num_inputs=5, num_outputs=3;
-	pNode inputs[num_inputs], outputs[num_outputs];
-	m_get_spread( inputs, num_inputs, -0.5 );
-	m_get_spread( outputs, num_outputs, 0.5 );
+	pNode sensors[NUM_SENSORS+1], motors[NUM_MOTORS];
+	m_get_spread( sensors, NUM_SENSORS, -0.5 );
+	m_get_spread( motors, NUM_MOTORS, 0.5 );
+	sensors[NUM_SENSORS].x[0] = 0;
+	sensors[NUM_SENSORS].x[1] = -1;
 
 	int i, gen;
+	double behaviour[NUM_BEHAVIOUR_VARS];
 	for ( gen=0; gen<100; gen++ ) {
-		for ( i=0; i<100; i++ ) {
-			reset_pNetwork( net );
-			if (( err = build_pNetwork( net, &pop.members[i].genotype, &params, num_inputs, inputs, num_outputs, outputs ) ))
+		for ( i=0; i<params.population_size; i++ ) {
+			reset_pNetwork( &net );
+			if (( err = build_pNetwork( &net, &pop.members[i].genotype, &params, NUM_SENSORS+1, sensors, NUM_MOTORS, motors ) ))
 				exit(err);
-			pop.members[i].score = net->num_links;
+
+			if ( ! net.num_used_links || ! net.num_used_nodes ) {
+				pop.members[i].score = 0;
+			} else {
+				run_trial( &net, &params, &bot_params, behaviour );
+				pop.members[i].score = sqrt(behaviour[0]*behaviour[0] + behaviour[1]*behaviour[1]);
+			}
+
 			if ( !(i%10) )
 				putchar('\n');
-			printf( "%9d ", net->num_links );
+			printf( "%9.1f ", pop.members[i].score );
 			fflush(stdout);
-/*			if ( net->num_nodes == 348 ) {*/
-/*				printf( "\n.....................................\n" );*/
-/*				//list_nodes_in_sector( net, 0, 0.5, 0, 0.5 );*/
-/*				print_node_matrix( net );*/
-/*				printf( ".....................................\n" );*/
-/*				while(!getchar());*/
-/*			}*/
 		}
 		printf( "\n------------------------- %d ", gen );
 		epoch( &pop, &params );
@@ -164,7 +171,7 @@ void maxTheNodeCount() {
 
 int main( int argc, char **argv ) {
 	srand(time(0));
-	maxTheNodeCount();
+	bots_in_a_box();
 	return 0;
 }
 
