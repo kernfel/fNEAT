@@ -31,6 +31,15 @@ typedef struct Room {
 	double x, y;
 } Room;
 
+typedef struct TileMaze {
+	double tile_width;
+	int x, y;
+	unsigned char *tiles;
+} TileMaze;
+
 void move_robot_in_room( Robot *bot, Room *room, struct Robot_Params *params, double *controller_outputs );
 void get_sensor_readings_in_room( Robot *bot, Room *room, struct Robot_Params *params, double *sensor_inputs );
+
+void move_robot_in_tilemaze( Robot *bot, TileMaze *maze, struct Robot_Params *params, double *controller_outputs );
+void get_sensor_readings_in_tilemaze( Robot *bot, TileMaze *maze, struct Robot_Params *params, double *sensor_inputs );
 
