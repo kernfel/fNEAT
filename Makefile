@@ -27,6 +27,9 @@ memcheck: valgrind
 valgrind: CFLAGS += -O0
 valgrind: debug
 
+optimised: CFLAGS += -O3
+optimised: main
+
 .PHONY: clean debug memcheck valgrind
 clean:
 	-rm main *.o

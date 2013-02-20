@@ -425,7 +425,7 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *params, double *source, d
 		k_max = 0;
 	}
 	
-	double diff;
+	double diff=0;
 	for ( k=0; !k_max || k<k_max; k+=k_incr ) {
 		diff = 0.0;
 		
