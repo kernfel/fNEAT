@@ -113,7 +113,16 @@ int build_eNetwork( eNetwork *e, pNetwork *p, struct NEAT_Params *params ) {
 		}
 	}
 
+	flush(e);
+
 	return err;
+}
+
+void flush( eNetwork *net ) {
+	unsigned int i;
+	for ( i=0; i<net->num_nodes; i++ ) {
+		net->nodes[i].a = 0;
+	}
 }
 
 void activate( eNetwork *net, double *inputs, double *outputs ) {
