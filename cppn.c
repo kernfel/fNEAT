@@ -604,3 +604,20 @@ cleanup:
 	return err;
 }
 
+void dump_CPPN( CPPN *net, FILE *fp ) {
+	int i;
+	for ( i=0; i<net->num_inputs; i++ ) {
+		fprintf( fp, "%2d | input\n", i );
+	}
+	for ( ; i<net->num_inputs+net->num_outputs; i++ ) {
+		fprintf( fp, "%2d | output | func %d\n", i, net->nodes[i].func );
+	}
+	for ( ; i<net->num_inputs+net->num_outputs+net->num_hidden; i++ ) {
+		fprintf( fp, "%2d | hidden | func %d\n", i, net->nodes[i].func );
+	}
+	for ( i=0; i<net->num_links; i++ ) {
+		fprintf( fp, "%3d | link #%5x | %2d > %2d | %+5.4f | %d\n", i, net->links[i].innov_id,
+		 net->links[i].from, net->links[i].to, net->links[i].weight, !net->links[i].is_disabled );
+	}
+}
+

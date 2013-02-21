@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #ifndef _CPPN_H
 #define _CPPN_H
 
@@ -71,6 +73,8 @@ double read_CPPN( CPPN *net, const struct NEAT_Params *parameters, double *sourc
 
 // Determine genetic distance
 double get_genetic_distance( const CPPN *net1, const CPPN *net2, const struct NEAT_Params *parameters );
+
+void dump_CPPN( CPPN *net, FILE *fp );
 
 // ** Private methods
 
