@@ -64,7 +64,8 @@ void get_sensor_readings_in_room( Robot *bot, Room *room, struct Robot_Params *p
 			depth_y = -(bot->y + s_y) / s_y;
 		else if ( bot->y + s_y > room->y )
 			depth_y = (bot->y + s_y - room->y) / s_y;
-		sensor_inputs[i] = max(depth_x, depth_y) * s_length / params->dist_sensor_length;
+		double reading = max(depth_x, depth_y) * s_length / params->dist_sensor_length;
+		sensor_inputs[i] = params->invert_dist_sensors ? 1-reading : reading;
 	}
 }
 
@@ -195,10 +196,12 @@ void get_sensor_readings_in_tilemaze( Robot *bot, TileMaze *maze, struct Robot_P
 		int cross_x = (int)((root_x + s_x) / maze->tile_width) - root_tile_x;
 		int cross_y = (int)((root_y + s_y) / maze->tile_width) - root_tile_y;
 		
-		sensor_inputs[i] = 0;
+		sensor_inputs[i] = params->invert_dist_sensors ? 1 : 0;
 
 		if ( ! cross_x && ! cross_y )
 			continue;
+
+		double reading=0;
 		
 		// Penetration of the sensor stub into the space outside of the root tile
 		double depth_x = (root_x + s_x - (cross_x>0 ? root_tile_x+1 : root_tile_x)*maze->tile_width) / s_x;
@@ -210,7 +213,7 @@ void get_sensor_readings_in_tilemaze( Robot *bot, TileMaze *maze, struct Robot_P
 		    || ! maze->tiles[root_tile_x+cross_x + maze->x*root_tile_y]
 		    )
 		) {
-			sensor_inputs[i] = depth_x;
+			reading = depth_x;
 
 		// Y crossing only, solid/invalid target tile
 		} else if ( cross_y && ! cross_x
@@ -218,7 +221,7 @@ void get_sensor_readings_in_tilemaze( Robot *bot, TileMaze *maze, struct Robot_P
 		    || ! maze->tiles[root_tile_x + maze->x*(root_tile_y+cross_y)]
 		    )
 		) {
-			sensor_inputs[i] = depth_y;
+			reading = depth_y;
 
 		// Diagonal crossing
 		} else if ( cross_x && cross_y ) {
@@ -226,19 +229,21 @@ void get_sensor_readings_in_tilemaze( Robot *bot, TileMaze *maze, struct Robot_P
 			if ( depth_x > depth_y ) {
 				// x-adjacent neighbour is solid/invalid target
 				if ( root_tile_x+cross_x == -1 || root_tile_x+cross_x == maze->x || ! maze->tiles[root_tile_x+cross_x + maze->x*root_tile_y] )
-					sensor_inputs[i] = depth_x;
+					reading = depth_x;
 				// Diagonally adjacent neighbour is solid/invalid target
 				else if ( root_tile_y+cross_y == -1 || root_tile_y+cross_y == maze->y \
 				 || ! maze->tiles[root_tile_x+cross_x + maze->x*(root_tile_y+cross_y)] )
-					sensor_inputs[i] = depth_y;
+					reading = depth_y;
 			} else {
 				if ( root_tile_y+cross_y == -1 || root_tile_y+cross_y == maze->y || ! maze->tiles[root_tile_x + maze->x*(root_tile_y+cross_y)] )
-					sensor_inputs[i] = depth_y;
+					reading = depth_y;
 				else if ( root_tile_x+cross_x == -1 || root_tile_x+cross_x == maze->x \
 				 || ! maze->tiles[root_tile_x+cross_x + maze->x*(root_tile_y+cross_y)] )
-					sensor_inputs[i] = depth_x;
+					reading = depth_x;
 			}
 		}
+
+		sensor_inputs[i] = params->invert_dist_sensors ? 1-reading : reading;
 	}
 }
 

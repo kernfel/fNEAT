@@ -346,19 +346,3 @@ void backtrack( pNetwork *net, pNode *n ) {
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

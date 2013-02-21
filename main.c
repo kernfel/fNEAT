@@ -34,10 +34,10 @@ void get_neat_params( struct NEAT_Params *params ) {
 	params->num_allowed_funcs = 0;
 	params->num_activations = 25;
 
-	params->population_size = 500;
+	params->population_size = 200;
 	params->extinction_threshold = 2;
 	params->champion_threshold = 1;
-	params->target_num_species = 40;
+	params->target_num_species = 15;
 
 	params->survival_quota = 0.2;
 	params->speciation_threshold = 3.0;
@@ -80,6 +80,7 @@ void get_robot_params( struct Robot_Params *params ) {
 	params->num_dist_sensors = 0;
 	params->dist_sensor_length = 1;
 	params->dist_sensor_pos = NULL;
+	params->invert_dist_sensors = 1;
 }
 
 int run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, struct Robot_Params *r_params, TileMaze *maze, int *behaviour ) {
@@ -96,8 +97,9 @@ int run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, str
 	}
 
 	Robot bot = { 1, 1, 0 };
-	double sensors[NUM_SENSORS+1], motors[NUM_MOTORS];
-	sensors[NUM_SENSORS] = 1;
+/*	double sensors[NUM_SENSORS+1], motors[NUM_MOTORS];*/
+/*	sensors[NUM_SENSORS] = 1;*/
+	double sensors[NUM_SENSORS], motors[NUM_MOTORS];
 	int i, tile_counter=0, tile=0, prev_tile;
 	for ( i=0; i<20000 && tile_counter < 400; i++ ) {
 		get_sensor_readings_in_tilemaze( &bot, maze, r_params, sensors );
@@ -112,6 +114,9 @@ int run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, str
 
 		++behaviour[tile];
 	}
+	
+	if ( i==tile_counter && bot.x == 1 && bot.y == 1 )
+		behaviour[tile] = 0;
 
 	delete_eNetwork( &controller );
 
@@ -134,9 +139,9 @@ int analyse_maze( TileMaze *m, int *behaviour, int print ) {
 			tiles_visited++;
 	}
 	if ( print ) {
-		for ( x=0; x<m->x; x++ ) {
+		for ( y=0; y<m->y; y++ ) {
 			putchar('\n');
-			for ( y=0; y<m->y; y++ ) {
+			for ( x=0; x<m->x; x++ ) {
 				if ( behaviour[x + m->x*y] ) {
 					int track = (int)(34 * behaviour[x + m->x*y] / maxval);
 					if ( track < 9 )
@@ -200,11 +205,12 @@ void bots_in_a_maze() {
 	if (( err = create_eNetwork( &controller ) ))
 		exit(err);
 
-	pNode sensors[NUM_SENSORS+1], motors[NUM_MOTORS];
+	pNode sensors[NUM_SENSORS], motors[NUM_MOTORS];
+/*	pNode sensors[NUM_SENSORS+1], motors[NUM_MOTORS];*/
+/*	sensors[NUM_SENSORS].x[0] = 0;*/
+/*	sensors[NUM_SENSORS].x[1] = -1;*/
 	m_get_spread( sensors, NUM_SENSORS, -0.5 );
 	m_get_spread( motors, NUM_MOTORS, 0.5 );
-	sensors[NUM_SENSORS].x[0] = 0;
-	sensors[NUM_SENSORS].x[1] = -1;
 
 	FILE *fp = fopen( "logs/champions.txt", "w" );
 
@@ -214,7 +220,8 @@ void bots_in_a_maze() {
 		best_score = 0;
 		for ( i=0; i<params.population_size; i++ ) {
 			reset_pNetwork( &net );
-			if (( err = build_pNetwork( &net, &pop.members[i].genotype, &params, NUM_SENSORS+1, sensors, NUM_MOTORS, motors ) ))
+			if (( err = build_pNetwork( &net, &pop.members[i].genotype, &params, NUM_SENSORS, sensors, NUM_MOTORS, motors ) ))
+/*			if (( err = build_pNetwork( &net, &pop.members[i].genotype, &params, NUM_SENSORS+1, sensors, NUM_MOTORS, motors ) ))*/
 				exit(err);
 
 			int s=0;
@@ -232,9 +239,24 @@ void bots_in_a_maze() {
 					memcpy( best_behaviour, behaviour, maze.x*maze.y*sizeof *behaviour );
 					winner = i;
 				}
+
+/*				printf( "indiv %5x | sp %3x | %2d tiles | %4d nodes | %6d links | inputs used: %d%d%d%d%d | bias used: %d\n",*/
+/*					pop.members[i].id,*/
+/*					pop.members[i].species_id,*/
+/*					s,*/
+/*					net.num_used_nodes,*/
+/*					net.num_used_links,*/
+/*					net.p_nodes[0][0].used,*/
+/*					net.p_nodes[0][1].used,*/
+/*					net.p_nodes[0][2].used,*/
+/*					net.p_nodes[0][3].used,*/
+/*					net.p_nodes[0][4].used,*/
+/*					net.p_nodes[0][5].used*/
+/*				*/
+/*				);*/
 			}
 
-//			printf( "%5x: ", pop.members[i].id );
+/*			printf( "%5x (%3x): ", pop.members[i].id, pop.members[i].species_id );*/
 			printf( "%2d  ", s);
 			fflush(stdout);
 		}
@@ -296,6 +318,8 @@ void bots_in_a_maze() {
 /*				exit(0);*/
 /*			}*/
 /*		}*/
+
+/*		while(!getchar());*/
 
 		epoch( &pop, &params );
 	}

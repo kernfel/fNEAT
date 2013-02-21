@@ -25,6 +25,7 @@ struct Robot_Params {
 	int	num_dist_sensors;
 	double	dist_sensor_length,
 		*dist_sensor_pos;
+	unsigned char invert_dist_sensors;
 };
 
 typedef struct Room {

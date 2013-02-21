@@ -6,7 +6,7 @@
 #include "network-static.h"
 #endif
 
-//#define VERBOSE 1
+#define VERBOSE 1
 
 // *** CPPN flags
 #define CFL_USE_DIST			(1 << 0) // Use calculated distance input
