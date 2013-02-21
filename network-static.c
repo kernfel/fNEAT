@@ -161,3 +161,21 @@ void activate( eNetwork *net, double *inputs, double *outputs ) {
 	}
 }
 
+void dump_eNetwork( eNetwork *net, FILE *fp ) {
+	unsigned int i;
+	for ( i=0; i<net->num_nodes; i++ ) {
+		fprintf( fp, "0x%08x | %4d\n",
+			(unsigned int) &net->nodes[i],
+			net->nodes[i].num_inputs
+		);
+	}
+
+	for ( i=0; i<net->num_links; i++ ) {
+		fprintf( fp, "0x%08x | 0x%08x > ... | %+6.4f\n",
+			(unsigned int) &net->links[i],
+			(unsigned int) net->links[i].from,
+			net->links[i].w
+		);
+	}
+}
+

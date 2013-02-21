@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #ifndef _NETWORK_STATIC_H
 #define _NETWORK_STATIC_H
 
@@ -61,6 +63,8 @@ void flush( eNetwork *net );
 
 // Run one activation cycle with the provided inputs
 void activate( eNetwork *net, double *inputs, double *outputs );
+
+void dump_eNetwork( eNetwork *e, FILE *fp );
 
 #endif
 

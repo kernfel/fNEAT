@@ -1,6 +1,7 @@
 #ifndef _NETWORK_H
 #define _NETWORK_H
 
+#include <stdio.h>
 #include "params.h"
 #include "extract.h"
 #include "cppn.h"
@@ -58,6 +59,8 @@ int build_pNetwork( pNetwork *net, CPPN *cppn, struct NEAT_Params *params, int n
 
 // Lazily prepare the pNetwork to receive a new build
 void reset_pNetwork( pNetwork *net );
+
+void dump_pNetwork( pNetwork *net, FILE *fp );
 
 // *** Internal
 

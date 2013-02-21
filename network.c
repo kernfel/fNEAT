@@ -58,6 +58,54 @@ void reset_pNetwork( pNetwork *net ) {
 	net->num_used_links = 0;
 }
 
+void dump_pNetwork( pNetwork *net, FILE *fp ) {
+	unsigned int i;
+	int j;
+
+	char coords[DIMENSIONS*8];
+	char c_part[8];
+
+	int block = -1, index;
+	for ( i=0; i<net->num_nodes; i++ ) {
+		index = i % BLOCKSIZE_NODES;
+		if ( ! index )
+			block++;
+		coords[0] = '\0';
+		for ( j=0; j<N_OUTPUTS; j++ ) {
+			sprintf( c_part, j<DIMENSIONS-1 ? "%+5.4f, " : "%+5.4f", net->p_nodes[block][index].x[j] );
+			strcat( coords, c_part );
+		}
+		fprintf( fp, "0x%08x | %s | %d | %s\n",
+			(unsigned int) &net->p_nodes[block][index],
+			i<net->num_inputs ? "input" : i<net->num_inputs+net->num_outputs ? "output" : "hidden",
+			net->p_nodes[block][index].used,
+			coords
+		);
+	}
+
+	char readout[N_OUTPUTS*9];
+	char r_part[9];
+
+	block = -1;
+	for ( i=0; i<net->num_links; i++ ) {
+		index = i % BLOCKSIZE_LINKS;
+		if ( ! index )
+			block++;
+		readout[0] = '\0';
+		for ( j=0; j<N_OUTPUTS; j++ ) {
+			sprintf( r_part, j<N_OUTPUTS-1 ? "%+6.4f, " : "%+6.4f", net->p_links[block][index].r[j] );
+			strcat( readout, r_part );
+		}
+		fprintf( fp, "0x%08x | %d | 0x%08x > 0x%08x | %s\n",
+			(unsigned int) &net->p_links[block][index],
+			net->p_links[block][index].used,
+			(unsigned int) net->p_links[block][index].from,
+			(unsigned int) net->p_links[block][index].to,
+			readout
+		);
+	}
+}
+
 int add_pNode( pNetwork *n, const double x[DIMENSIONS], pNode **result ) {
 	int err=0;
 
