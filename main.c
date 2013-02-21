@@ -84,11 +84,13 @@ void get_robot_params( struct Robot_Params *params ) {
 
 int run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, struct Robot_Params *r_params, TileMaze *maze, int *behaviour ) {
 	int err=0;
-	
+
+	struct Implementation_Params i_params = {3};
+
 	eNetwork controller;
 	if (( err = create_eNetwork( &controller ) ))
 		return err;
-	if (( err = build_eNetwork( &controller, controller_structure, n_params ) )) {
+	if (( err = build_eNetwork( &controller, controller_structure, n_params, &i_params ) )) {
 		delete_eNetwork( &controller );
 		return err;
 	}

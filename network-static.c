@@ -39,7 +39,7 @@ void delete_eNetwork( eNetwork *e ) {
 	e->num_links = 0;
 }
 
-int build_eNetwork( eNetwork *e, pNetwork *p, struct NEAT_Params *params ) {
+int build_eNetwork( eNetwork *e, pNetwork *p, struct NEAT_Params *params, struct Implementation_Params *iparams ) {
 	int err=0;
 
 	if (( err = Realloc( e->nodes, p->num_used_nodes*sizeof *e->nodes ) )
@@ -86,7 +86,7 @@ int build_eNetwork( eNetwork *e, pNetwork *p, struct NEAT_Params *params ) {
 	pLink *l;
 	eLink *next_link=e->links;
 	eNode *next_node=e->nodes;
-	double stretch = 3/(1-params->expression_thresholds[0]), offset = params->expression_thresholds[0] * stretch;
+	double stretch = iparams->weight_range/(1-params->expression_thresholds[0]), offset = params->expression_thresholds[0] * stretch;
 	int l_block, l_index;
 	block = -1;
 	for ( i=0; i<p->num_nodes; i++ ) {

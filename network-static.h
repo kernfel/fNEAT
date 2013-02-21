@@ -45,6 +45,10 @@ typedef struct eNetwork {
 	eLink *links;
 } eNetwork;
 
+struct Implementation_Params {
+	double weight_range;
+};
+
 
 // ** Constructor
 int create_eNetwork( eNetwork *e );
@@ -57,7 +61,7 @@ void delete_eNetwork( eNetwork *e );
 // ** Public
 
 // Initialise eNet e for evaluation, using the structure provided by a pNetwork.
-int build_eNetwork( eNetwork *e, struct pNetwork *p, struct NEAT_Params *params );
+int build_eNetwork( eNetwork *e, struct pNetwork *p, struct NEAT_Params *params, struct Implementation_Params *iparams );
 
 void flush( eNetwork *net );
 
