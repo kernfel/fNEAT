@@ -319,14 +319,27 @@ int get_population_fertility( Population *pop, struct NEAT_Params *params, int *
 	}
 	
 	#ifdef VERBOSE
+		double sd[pop->num_species], dev;
+		for ( j=0; j<pop->num_species; j++ ) {
+			sd[j] = 0;
+			for ( i=0; i<pop->num_members; i++ ) {
+				if ( pop->species[j].id == pop->members[i].species_id ) {
+					dev = pop->species[j].mean_score - pop->members[i].score;
+					sd[j] += dev*dev;
+				}
+			}
+			sd[j] = sqrt(sd[j]/pop->species[j].size);
+		}
+		
 		for ( i=0; i<pop->num_species; i++ ) {
-			printf( "Species #%3x (idx %2d) - %3d members, %2d offspring - total score: %6.2f | avg score: %2.2f\n",
+			printf( "Species #%3x (idx %2d) - %3d members, %3d offspring - total score: %8.2f | avg score: %8.2f | sd: %4.2f\n",
 				pop->species[i].id,
 				i,
 				pop->species[i].size,
 				num_offspring[i],
 				species_scores[i],
-				pop->species[i].mean_score
+				pop->species[i].mean_score,
+				sd[i]
 			);
 		}
 	#endif
@@ -383,10 +396,6 @@ int mutate_population( Population *pop, struct NEAT_Params *params, Individual *
 				break;
 			}
 		}
-		#ifdef VERBOSE
-		if ( is_champ )
-			printf( "Skipping mutation of #%5x, champion of species %3x\n", pop->members[i].id, pop->members[i].species_id );
-		#endif
 		if ( is_champ )
 			continue;
 		
