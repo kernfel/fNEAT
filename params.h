@@ -6,6 +6,8 @@
 #include "network-static.h"
 #endif
 
+//#define VERBOSE 1
+
 // *** CPPN flags
 #define CFL_USE_DIST			(1 << 0) // Use calculated distance input
 #define CFL_SQUARE_DIST			(1 << 1) // Feed the squared distance, rather than the linear one, into the distance input
@@ -109,6 +111,7 @@ struct NEAT_Params {
 // UID counters -- initialise to 0
 	unsigned int innov_counter;
 	unsigned int species_counter;
+	unsigned int individual_counter;
 };
 
 

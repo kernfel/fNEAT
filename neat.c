@@ -25,6 +25,7 @@ int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *
 	Individual adam;
 	adam.genotype = *prototype;
 	adam.species_id = ++params->species_counter;
+	adam.id = ++params->individual_counter;
 	
 	pop->species[0].id = adam.species_id;
 	pop->species[0].size = pop->num_members;
@@ -37,6 +38,7 @@ int create_Population( Population *pop, struct NEAT_Params *params, const CPPN *
 			return err;
 		}
 		pop->members[i].species_id = adam.species_id;
+		pop->members[i].id = ++params->individual_counter;
 	}
 	
 	return err;
@@ -175,10 +177,15 @@ int reproduce_population( Population *pop, struct NEAT_Params *params, Individua
 			// If necessary, spread its genes...
 			if ( j >= num_parents[i] ) {
 				free_slots[k]->species_id = pop->species[i].id;
+				free_slots[k]->id = ++params->individual_counter;
 				if (( err = clone_CPPN( &free_slots[k]->genotype, g ) ))
 					goto failure;
 				// ... and work with the result.
 				g = &free_slots[k++]->genotype;
+
+			// No further processing for champions
+			} else if ( g == &champions[i]->genotype ) {
+				continue;
 			}
 
 			// Perform crossover
@@ -242,8 +249,8 @@ int get_population_fertility( Population *pop, struct NEAT_Params *params, int *
 		for ( j=0; j<pop->num_species; j++ ) {
 			if ( pop->species[j].id == pop->members[i].species_id ) {
 				species_scores[j] += pop->members[i].score;
-				#ifdef VERBOSE
-					printf( "Member %3d in species #%2d, score: %2.2f\n", i, pop->species_ids[j], pop->members[i].score );
+				#if defined VERBOSE && VERBOSE > 2
+					printf( "Member #%5x in species #%3x, score: %2.2f\n", pop->members[i].id, pop->species[j].id, pop->members[i].score );
 				#endif
 				break;
 			}
@@ -313,7 +320,7 @@ int get_population_fertility( Population *pop, struct NEAT_Params *params, int *
 	
 	#ifdef VERBOSE
 		for ( i=0; i<pop->num_species; i++ ) {
-			printf( "Species #%2d (idx %2d) - %3d members, %2d offspring - total score: %6.2f | avg score: %2.2f\n",
+			printf( "Species #%3x (idx %2d) - %3d members, %2d offspring - total score: %6.2f | avg score: %2.2f\n",
 				pop->species[i].id,
 				i,
 				pop->species[i].size,
@@ -376,6 +383,10 @@ int mutate_population( Population *pop, struct NEAT_Params *params, Individual *
 				break;
 			}
 		}
+		#ifdef VERBOSE
+		if ( is_champ )
+			printf( "Skipping mutation of #%5x, champion of species %3x\n", pop->members[i].id, pop->members[i].species_id );
+		#endif
 		if ( is_champ )
 			continue;
 		
