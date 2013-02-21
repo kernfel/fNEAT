@@ -34,10 +34,10 @@ void get_neat_params( struct NEAT_Params *params ) {
 	params->num_allowed_funcs = 0;
 	params->num_activations = 25;
 
-	params->population_size = 250;
+	params->population_size = 500;
 	params->extinction_threshold = 2;
-	params->champion_threshold = 5;
-	params->target_num_species = 10;
+	params->champion_threshold = 1;
+	params->target_num_species = 40;
 
 	params->survival_quota = 0.2;
 	params->speciation_threshold = 3.0;
@@ -49,14 +49,14 @@ void get_neat_params( struct NEAT_Params *params ) {
 	
 	params->stagnation_age_threshold = 15;
 	params->stagnation_score_threshold = 0.2;
-	params->stagnation_penalty = 1;
+	params->stagnation_penalty = 0.8;
 
 	params->add_link_prob = 0.4;
 	params->add_node_prob = 0.02;
-	params->enable_link_prob = 0.25;
+	params->enable_link_prob = 0.025;
 	params->disable_link_prob = 0.01;
-	params->crossover_prob = 0.75;
-	params->interspecies_mating_prob = 0.0;
+	params->crossover_prob = 0.5;
+	params->interspecies_mating_prob = 0.001;
 	
 	params->mutate_weights_prob = 0.8;
 	params->perturb_weights_proportion = 0.75;
@@ -66,6 +66,7 @@ void get_neat_params( struct NEAT_Params *params ) {
 
 	params->innov_counter = 0;
 	params->species_counter = 0;
+	params->individual_counter = 0;
 }
 
 void get_robot_params( struct Robot_Params *params ) {
@@ -81,23 +82,38 @@ void get_robot_params( struct Robot_Params *params ) {
 	params->dist_sensor_pos = NULL;
 }
 
-void run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, struct Robot_Params *r_params, TileMaze *maze, int *behaviour ) {
+int run_trial( pNetwork *controller_structure, struct NEAT_Params *n_params, struct Robot_Params *r_params, TileMaze *maze, int *behaviour ) {
+	int err=0;
+	
 	eNetwork controller;
-	create_eNetwork( &controller );
-	build_eNetwork( &controller, controller_structure, n_params );
+	if (( err = create_eNetwork( &controller ) ))
+		return err;
+	if (( err = build_eNetwork( &controller, controller_structure, n_params ) )) {
+		delete_eNetwork( &controller );
+		return err;
+	}
 
 	Robot bot = { 1, 1, 0 };
 	double sensors[NUM_SENSORS+1], motors[NUM_MOTORS];
 	sensors[NUM_SENSORS] = 1;
-	unsigned int i;
-	for ( i=0; i<20000; i++ ) {
+	int i, tile_counter=0, tile=0, prev_tile;
+	for ( i=0; i<20000 && tile_counter < 400; i++ ) {
 		get_sensor_readings_in_tilemaze( &bot, maze, r_params, sensors );
 		activate( &controller, sensors, motors );
 		move_robot_in_tilemaze( &bot, maze, r_params, motors );
-		++behaviour[(int)(bot.x / maze->tile_width) + maze->x*(int)(bot.y / maze->tile_width)];
+		
+		prev_tile = tile;
+		tile = (int)(bot.x / maze->tile_width) + maze->x*(int)(bot.y / maze->tile_width);
+		tile_counter++;
+		if ( tile != prev_tile )
+			tile_counter = 0;
+
+		++behaviour[tile];
 	}
 
 	delete_eNetwork( &controller );
+
+	return err;
 }
 
 void m_get_spread( pNode *in, int n, double x ) {
@@ -178,14 +194,20 @@ void bots_in_a_maze() {
 	if (( err = create_pNetwork( &net ) ))
 		exit(err);
 
+	eNetwork controller;
+	if (( err = create_eNetwork( &controller ) ))
+		exit(err);
+
 	pNode sensors[NUM_SENSORS+1], motors[NUM_MOTORS];
 	m_get_spread( sensors, NUM_SENSORS, -0.5 );
 	m_get_spread( motors, NUM_MOTORS, 0.5 );
 	sensors[NUM_SENSORS].x[0] = 0;
 	sensors[NUM_SENSORS].x[1] = -1;
 
+	FILE *fp = fopen( "logs/champions.txt", "w" );
+
 	int i, gen;
-	int behaviour[maze.x*maze.y], best_behaviour[maze.x*maze.y], best_score;
+	int behaviour[maze.x*maze.y], best_behaviour[maze.x*maze.y], best_score, winner, peak, peak_score=0;
 	for ( gen=0; 1; gen++ ) {
 		best_score = 0;
 		for ( i=0; i<params.population_size; i++ ) {
@@ -193,25 +215,86 @@ void bots_in_a_maze() {
 			if (( err = build_pNetwork( &net, &pop.members[i].genotype, &params, NUM_SENSORS+1, sensors, NUM_MOTORS, motors ) ))
 				exit(err);
 
+			int s=0;
 			if ( ! net.num_used_links || ! net.num_used_nodes ) {
 				pop.members[i].score = 0;
 			} else {
 				memset( behaviour, 0, maze.x*maze.y*sizeof *behaviour );
-				run_trial( &net, &params, &bot_params, &maze, behaviour );
-				int s = analyse_maze( &maze, behaviour, 0 );
+				if (( err = run_trial( &net, &params, &bot_params, &maze, behaviour ) ))
+					exit(err);
+				s = analyse_maze( &maze, behaviour, 0 );
 				pop.members[i].score = s*s;
 
 				if ( s > best_score ) {
 					best_score = s;
 					memcpy( best_behaviour, behaviour, maze.x*maze.y*sizeof *behaviour );
+					winner = i;
 				}
 			}
 
-			putchar('.');
+//			printf( "%5x: ", pop.members[i].id );
+			printf( "%2d  ", s);
 			fflush(stdout);
 		}
-		printf( "\nGeneration %d's champion explorer is sniffing around %d tiles:", gen, best_score );
+
+		printf( "\n\nGeneration %d's champion explorer, #%5x of species #%3x, had a good look at %d tiles:",
+			gen,
+			pop.members[winner].id,
+			pop.members[winner].species_id,
+			best_score
+		);
 		analyse_maze( &maze, best_behaviour, 1 );
+		
+/*		if ( peak_score > best_score ) {*/
+/*			fprintf( fp, "\n>>> Generation %d | #%5x | species #%3x | %2d tiles\n",*/
+/*				gen,*/
+/*				pop.members[peak].id,*/
+/*				pop.members[peak].species_id,*/
+/*				(int) sqrt(pop.members[peak].score)*/
+/*			);*/
+/*			dump_CPPN( &pop.members[peak].genotype, fp );*/
+
+/*			reset_pNetwork( &net );*/
+/*			if (( err = build_pNetwork( &net, &pop.members[peak].genotype, &params, NUM_SENSORS+1, sensors, NUM_MOTORS, motors ) ))*/
+/*				exit(err);*/
+/*			//dump_pNetwork( &net, fp );*/
+/*			if (( err = build_eNetwork( &controller, &net, &params ) ))*/
+/*				exit(err);*/
+/*			dump_eNetwork( &controller, fp );*/
+/*		} else {*/
+/*			peak_score = best_score;*/
+/*			peak = winner;*/
+/*		}*/
+
+/*		fprintf( fp, "\nGeneration %d | #%5x | species #%3x | %2d tiles\n",*/
+/*			gen,*/
+/*			pop.members[winner].id,*/
+/*			pop.members[winner].species_id,*/
+/*			best_score*/
+/*		);*/
+/*		dump_CPPN( &pop.members[winner].genotype, fp );*/
+/*		reset_pNetwork( &net );*/
+/*		if (( err = build_pNetwork( &net, &pop.members[winner].genotype, &params, NUM_SENSORS+1, sensors, NUM_MOTORS, motors ) ))*/
+/*			exit(err);*/
+/*		//dump_pNetwork( &net, fp );*/
+/*		if (( err = build_eNetwork( &controller, &net, &params ) ))*/
+/*			exit(err);*/
+/*		dump_eNetwork( &controller, fp );*/
+
+/*		if ( ! (gen%5) ) {*/
+/*			fflush(fp);*/
+/*			printf( "\nPaused... e=exit, anything else=continue: " );*/
+/*			unsigned char c=getchar();*/
+/*			if ( c == 'e' ) {*/
+/*				fclose( fp );*/
+/*				delete_eNetwork( &controller );*/
+/*				delete_pNetwork( &net );*/
+/*				delete_Population( &pop );*/
+/*				delete_CPPN( &cppn );*/
+/*				exit(0);*/
+/*			}*/
+/*		}*/
+
 		epoch( &pop, &params );
 	}
 }
